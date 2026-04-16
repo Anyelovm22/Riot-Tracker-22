@@ -59,6 +59,8 @@ Copia `.env.example` a `.env` y ajusta los valores:
 cp .env.example .env
 ```
 
+> ⚠️ Nunca subas llaves reales (`RIOT_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `DATABASE_URL`) al repositorio. Si ya las compartiste públicamente, rótalas inmediatamente.
+
 ### 3) Instalar dependencias
 
 ```bash
@@ -74,7 +76,7 @@ npm run dev:api
 npm run dev:web
 ```
 
-- API: `http://localhost:4000`
+- API: `http://localhost:1000` (usa `PORT=1000`; también se acepta `API_PORT`)
 - Web: `http://localhost:5173`
 
 ---
