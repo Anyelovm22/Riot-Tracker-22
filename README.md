@@ -79,6 +79,12 @@ npm run dev:web
 - API: `http://localhost:1000` (usa `PORT=1000`; también se acepta `API_PORT`)
 - Web: `http://localhost:5173`
 
+Si al levantar la API ves un error de Zod indicando que falta `RIOT_API_KEY`, revisa que:
+
+1. exista un archivo `.env` en la raíz del proyecto (o en `apps/api/.env`),
+2. tengas una key válida de Riot en `RIOT_API_KEY`,
+3. opcionalmente, puedes usar `RIOT_API_TOKEN` como alias (internamente se normaliza a `RIOT_API_KEY`).
+
 ---
 
 ## Arquitectura
