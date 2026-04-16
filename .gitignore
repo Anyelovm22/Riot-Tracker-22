@@ -1,0 +1,10 @@
+node_modules
+.env
+.env.*
+dist
+coverage
+.DS_Store
+apps/web/node_modules
+apps/api/node_modules
+apps/web/dist
+apps/api/dist
