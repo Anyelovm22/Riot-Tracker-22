@@ -4,11 +4,29 @@
 
 :root {
   font-family: Inter, system-ui, -apple-system, sans-serif;
-  color: #f8fafc;
-  background-color: #020617;
+  color: #fafafa;
+  background-color: #090a0d;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: rgba(45, 212, 191, 0.32);
+}
+
+html {
+  scrollbar-color: #334155 #090a0d;
+}
+
+button,
+select,
+input {
+  font: inherit;
 }

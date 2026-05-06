@@ -1,6 +1,6 @@
 export const EmptyState = ({ title, description }: { title: string; description: string }) => (
-  <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/40 p-6 text-center">
-    <h4 className="text-lg font-semibold text-slate-200">{title}</h4>
-    <p className="mt-2 text-sm text-slate-400">{description}</p>
+  <div className="rounded-lg border border-dashed border-zinc-700/90 bg-zinc-950/55 p-6 text-center shadow-inner shadow-black/20">
+    <h4 className="text-lg font-semibold text-zinc-200">{title}</h4>
+    <p className="mt-2 text-sm text-zinc-400">{description}</p>
   </div>
 );

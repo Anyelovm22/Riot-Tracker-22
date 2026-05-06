@@ -8,8 +8,8 @@ interface CardProps extends PropsWithChildren {
 
 export const Card = ({ children, className, title }: CardProps) => {
   return (
-    <section className={clsx('rounded-xl border border-slate-800 bg-slate-900/70 p-4 shadow-lg shadow-slate-950/30', className)}>
-      {title && <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">{title}</h3>}
+    <section className={clsx('rounded-lg border border-zinc-800/90 bg-zinc-950/80 p-4 shadow-xl shadow-black/20', className)}>
+      {title && <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-300">{title}</h3>}
       {children}
     </section>
   );

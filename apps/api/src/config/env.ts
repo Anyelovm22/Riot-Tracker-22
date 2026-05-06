@@ -2,8 +2,12 @@ import dotenv from 'dotenv';
 import path from 'node:path';
 import { z } from 'zod';
 
+const configDir = __dirname;
+const apiRoot = path.resolve(configDir, '../..');
+const repoRoot = path.resolve(apiRoot, '../..');
+
 dotenv.config({
-  path: [path.resolve(process.cwd(), '.env'), path.resolve(process.cwd(), 'apps/api/.env')]
+  path: [path.resolve(repoRoot, '.env'), path.resolve(apiRoot, '.env'), path.resolve(process.cwd(), '.env')]
 });
 
 const resolvedPort = process.env.API_PORT ?? process.env.PORT ?? 1000;

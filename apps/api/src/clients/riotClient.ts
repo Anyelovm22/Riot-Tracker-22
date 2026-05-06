@@ -44,6 +44,10 @@ class RiotClient {
           throw new AppError('Jugador no encontrado', 404, 'PLAYER_NOT_FOUND');
         }
 
+        if (status === 401 || status === 403) {
+          throw new AppError('RIOT_API_KEY inválida o expirada. Genera una nueva key de Riot y actualiza tu archivo .env.', status, 'RIOT_AUTH_ERROR');
+        }
+
         if (status === 429) {
           const retryAfter = Number(axiosError.response?.headers['retry-after'] ?? 1);
           if (attempt === MAX_RETRIES) {

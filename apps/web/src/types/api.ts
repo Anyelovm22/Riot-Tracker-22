@@ -6,9 +6,14 @@ export interface SummonerProfile {
   summonerLevel: number;
 }
 
+export type RankedQueueKey = 'solo' | 'flex';
+export type ChampionRole = 'TOP' | 'JUNGLE' | 'MID' | 'ADC' | 'SUPPORT' | 'UNKNOWN';
+export type ChampionTier = 'S+' | 'S' | 'A' | 'B' | 'C';
+
 export interface MatchOverview {
   matchId: string;
   championName: string;
+  championId: number;
   queueId: number;
   win: boolean;
   kills: number;
@@ -16,6 +21,21 @@ export interface MatchOverview {
   assists: number;
   csPerMinute: number;
   visionScore: number;
+  wardsPlaced: number;
+  wardsKilled: number;
+  controlWardsPlaced: number;
+  goldEarned: number;
+  goldPerMinute: number;
+  damageToChampions: number;
+  damagePerMinute: number;
+  killParticipation: number;
+  teamPosition: string;
+  lane: string;
+  champLevel: number;
+  itemIds: number[];
+  summonerSpellIds: number[];
+  objectiveTakedowns: number;
+  totalTimeSpentDead: number;
   gameDurationSeconds: number;
   gameCreation: number;
 }
@@ -47,4 +67,70 @@ export interface PlayerSummary {
     avgCsMin: number;
     visionPerGame: number;
   };
+}
+
+export interface ChampionBuildVariant {
+  name: string;
+  itemIds: number[];
+  games: number;
+  wins: number;
+  winRate: number;
+  avgKda: number;
+  note: string;
+}
+
+export interface ChampionBuildStats {
+  championId: number;
+  championName: string;
+  role: ChampionRole;
+  games: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  pickRate: number;
+  avgKda: number;
+  avgCs: number;
+  avgVision: number;
+  avgDamage: number;
+  avgGold: number;
+  avgKillParticipation: number;
+  avgObjectives: number;
+  score: number;
+  confidence: number;
+  tier: ChampionTier;
+  itemIds: number[];
+  coreItemIds: number[];
+  situationalItemIds: number[];
+  summonerSpellIds: number[];
+  variants: ChampionBuildVariant[];
+  lastPlayedAt: number;
+}
+
+export interface ChampionTierRow {
+  championId: number;
+  championName: string;
+  role: ChampionRole;
+  tier: ChampionTier;
+  score: number;
+  confidence: number;
+  games: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  pickRate: number;
+  avgKda: number;
+  avgCs: number;
+  avgVision: number;
+  coreItemIds: number[];
+  lastPlayedAt: number;
+}
+
+export interface ChampionInsightsResponse {
+  source: 'riot-match-v5';
+  queue: RankedQueueKey;
+  count: number;
+  totalMatches: number;
+  generatedAt: string;
+  builds: ChampionBuildStats[];
+  tierList: ChampionTierRow[];
 }
