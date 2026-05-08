@@ -1,5 +1,5 @@
 import { apiClient } from './apiClient';
-import { ChampionInsightsResponse, MatchOverview, PlayerSummary, RankedQueueKey } from '../types/api';
+import { ChampionBuildsResponse, ChampionInsightsResponse, ChampionRole, EliteLeagueTier, MatchOverview, PlayerSummary, RankedQueueKey } from '../types/api';
 
 export const riotApi = {
   async getSummary(region: string, gameName: string, tagLine: string) {
@@ -22,6 +22,45 @@ export const riotApi = {
   async getChampionInsights(region: string, puuid: string, queue: RankedQueueKey, count = 80) {
     const { data } = await apiClient.get<ChampionInsightsResponse>(`/riot/champion-insights/${region}/${puuid}`, {
       params: { queue, count }
+    });
+    return data;
+  },
+
+  async getChampionBuilds(
+    region: string,
+    championId: number,
+    options: {
+      queue: RankedQueueKey;
+      role: ChampionRole | 'ALL';
+      sourceTier: EliteLeagueTier;
+      playerLimit?: number;
+      matchesPerPlayer?: number;
+      championMatchLimit?: number;
+    }
+  ) {
+    const { data } = await apiClient.get<ChampionBuildsResponse>(`/riot/champion-builds/${region}/${championId}`, {
+      params: options
+    });
+    return data;
+  },
+
+  async getGlobalChampionBuilds(
+    championId: number,
+    options: {
+      queue: RankedQueueKey;
+      role: ChampionRole | 'ALL';
+      sourceTier: EliteLeagueTier;
+      regions?: string[];
+      playerLimit?: number;
+      matchesPerPlayer?: number;
+      championMatchLimit?: number;
+    }
+  ) {
+    const { data } = await apiClient.get<ChampionBuildsResponse>(`/riot/champion-builds-global/${championId}`, {
+      params: {
+        ...options,
+        regions: options.regions?.join(',')
+      }
     });
     return data;
   },

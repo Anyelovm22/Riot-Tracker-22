@@ -10,6 +10,8 @@ riotRoutes.get('/ranked/:region/:puuid', validateRegion, asyncHandler(riotContro
 riotRoutes.get('/history/:region/:puuid', validateRegion, asyncHandler(riotController.history));
 riotRoutes.get('/ranked-matches/:region/:puuid', validateRegion, asyncHandler(riotController.rankedMatches));
 riotRoutes.get('/champion-insights/:region/:puuid', validateRegion, asyncHandler(riotController.championInsights));
+riotRoutes.get('/champion-builds-global/:championId', asyncHandler(riotController.championBuildsGlobal));
+riotRoutes.get('/champion-builds/:region/:championId', validateRegion, asyncHandler(riotController.championBuilds));
 riotRoutes.get('/match/:region/:matchId', validateRegion, asyncHandler(riotController.match));
 riotRoutes.get('/live/:region/:puuid', validateRegion, asyncHandler(riotController.live));
 riotRoutes.get('/mastery/:region/:puuid', validateRegion, asyncHandler(riotController.mastery));

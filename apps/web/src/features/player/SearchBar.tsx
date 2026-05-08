@@ -19,8 +19,14 @@ const regions = [
   { value: 'ru', label: 'RU - Rusia' }
 ];
 
+const cleanRiotIdPart = (value: string) =>
+  value
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069]/g, '')
+    .trim();
+
 const parseRiotId = (value: string) => {
-  const cleaned = value.trim();
+  const cleaned = cleanRiotIdPart(value);
   const hashIndex = cleaned.lastIndexOf('#');
 
   if (hashIndex === -1) {
@@ -31,8 +37,8 @@ const parseRiotId = (value: string) => {
   }
 
   return {
-    gameName: cleaned.slice(0, hashIndex).trim(),
-    tagLine: cleaned.slice(hashIndex + 1).trim()
+    gameName: cleanRiotIdPart(cleaned.slice(0, hashIndex)),
+    tagLine: cleanRiotIdPart(cleaned.slice(hashIndex + 1))
   };
 };
 
@@ -45,8 +51,8 @@ export const SearchBar = ({ onSearch, isLoading }: SearchBarProps) => {
   const [submitError, setSubmitError] = useState('');
 
   const parsed = useMemo(() => parseRiotId(riotId), [riotId]);
-  const gameName = showSplitFields ? manualGameName.trim() : parsed.gameName;
-  const tagLine = showSplitFields ? manualTagLine.trim().replace(/^#/, '') : parsed.tagLine.replace(/^#/, '');
+  const gameName = showSplitFields ? cleanRiotIdPart(manualGameName) : parsed.gameName;
+  const tagLine = showSplitFields ? cleanRiotIdPart(manualTagLine).replace(/^#/, '') : cleanRiotIdPart(parsed.tagLine).replace(/^#/, '');
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -149,7 +155,7 @@ export const SearchBar = ({ onSearch, isLoading }: SearchBarProps) => {
                 setManualGameName(parsed.gameName);
                 setManualTagLine(parsed.tagLine);
               } else {
-                const nextRiotId = manualGameName && manualTagLine ? `${manualGameName}#${manualTagLine.replace(/^#/, '')}` : riotId;
+                const nextRiotId = gameName && tagLine ? `${gameName}#${tagLine}` : cleanRiotIdPart(riotId);
                 setRiotId(nextRiotId);
               }
               setSubmitError('');

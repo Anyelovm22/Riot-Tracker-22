@@ -11,7 +11,12 @@ dotenv.config({
 });
 
 const resolvedPort = process.env.API_PORT ?? process.env.PORT ?? 1000;
-const resolvedRiotApiKey = process.env.RIOT_API_KEY ?? process.env.RIOT_API_TOKEN;
+const normalizeEnvValue = (value?: string) => value?.trim();
+const isUsableRiotKey = (value?: string) => Boolean(value && value !== 'RGAPI-your-key');
+const resolvedRiotApiKey =
+  [normalizeEnvValue(process.env.RIOT_API_KEY), normalizeEnvValue(process.env.RIOT_API_TOKEN)].find(isUsableRiotKey) ??
+  normalizeEnvValue(process.env.RIOT_API_KEY) ??
+  normalizeEnvValue(process.env.RIOT_API_TOKEN);
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),

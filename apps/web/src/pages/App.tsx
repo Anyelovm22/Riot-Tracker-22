@@ -6,6 +6,7 @@ import { EmptyState } from '../components/EmptyState';
 import { ErrorState } from '../components/ErrorState';
 import { MetricCard } from '../components/MetricCard';
 import { Skeleton } from '../components/Skeleton';
+import { ChampionBuildLab } from '../features/builds/ChampionBuildLab';
 import { MatchHistoryTable } from '../features/match/MatchHistoryTable';
 import { ChampionMasteryList } from '../features/player/ChampionMasteryList';
 import { ProfileHeader } from '../features/player/ProfileHeader';
@@ -15,11 +16,14 @@ import { MainLayout } from '../layouts/MainLayout';
 import {
   ChampionCatalogMap,
   ItemCatalogMap,
+  SummonerSpellCatalogMap,
   championIconUrl,
   getChampionCatalog,
   getItemCatalog,
   getLatestDataDragonVersion,
-  itemIconUrl
+  getSummonerSpellCatalog,
+  itemIconUrl,
+  summonerSpellIconUrl
 } from '../services/dataDragon';
 import { riotApi } from '../services/riotApi';
 import type { ChampionBuildStats, ChampionInsightsResponse, ChampionRole, MatchOverview, RankedQueueKey } from '../types/api';
@@ -472,6 +476,8 @@ const InfoBlock = ({ title, children }: { title: string; children: ReactNode }) 
   </div>
 );
 
+void BuildPanel;
+
 const tierClass = (tier: string) =>
   clsx(
     'rounded-md px-2 py-1 font-bold',
@@ -760,6 +766,217 @@ const LivePanel = ({
   );
 };
 
+const getEnhancedLiveParticipants = (live?: Record<string, unknown> | null) => {
+  const rawParticipants = live?.participants;
+  if (!Array.isArray(rawParticipants)) return [];
+
+  return rawParticipants.map((participant) => {
+    const item = participant as Record<string, unknown>;
+    return {
+      puuid: String(item.puuid ?? ''),
+      summonerName: String(item.riotId ?? item.summonerName ?? 'Jugador'),
+      championId: Number(item.championId ?? 0),
+      teamId: Number(item.teamId ?? 0),
+      spell1Id: Number(item.spell1Id ?? 0),
+      spell2Id: Number(item.spell2Id ?? 0)
+    };
+  });
+};
+
+const getLiveMeta = (live?: Record<string, unknown> | null) => ({
+  gameLength: Number(live?.gameLength ?? 0),
+  queueLabel: shortQueue(Number(live?.gameQueueConfigId ?? 0)),
+  gameMode: String(live?.gameMode ?? 'Live')
+});
+
+const formatGameClock = (seconds: number) => {
+  if (!Number.isFinite(seconds) || seconds <= 0) return '0:00';
+  const minutes = Math.floor(seconds / 60);
+  const rest = Math.floor(seconds % 60)
+    .toString()
+    .padStart(2, '0');
+  return `${minutes}:${rest}`;
+};
+
+const LiveSpellStrip = ({ spellIds, spellCatalog, version }: { spellIds: number[]; spellCatalog?: SummonerSpellCatalogMap; version?: string }) => (
+  <div className="flex gap-1.5">
+    {spellIds.filter(Boolean).map((spellId) => {
+      const spell = spellCatalog?.[spellId];
+      return spell ? (
+        <img key={spellId} src={summonerSpellIconUrl(version, spell.image)} title={spell.name} alt="" className="h-7 w-7 rounded-md border border-zinc-800 bg-zinc-900" />
+      ) : (
+        <span key={spellId} className="grid h-7 w-7 place-items-center rounded-md border border-zinc-800 bg-zinc-900 text-[10px] text-zinc-400">
+          {spellId}
+        </span>
+      );
+    })}
+  </div>
+);
+
+const EnhancedLivePanel = ({
+  live,
+  matches,
+  version,
+  championCatalog,
+  spellCatalog,
+  currentPuuid
+}: {
+  live?: Record<string, unknown> | null;
+  matches: MatchOverview[];
+  version?: string;
+  championCatalog?: ChampionCatalogMap;
+  spellCatalog?: SummonerSpellCatalogMap;
+  currentPuuid?: string;
+}) => {
+  const participants = getEnhancedLiveParticipants(live);
+  const meta = getLiveMeta(live);
+  const latest = matches[0];
+  const latestChampion = latest ? getChampion(championCatalog, latest.championId, latest.championName) : undefined;
+  const currentPlayer = participants.find((player) => player.puuid === currentPuuid);
+  const allyTeamId = currentPlayer?.teamId ?? participants[0]?.teamId;
+  const enemyTeamId = participants.find((player) => player.teamId !== allyTeamId)?.teamId;
+  const teams = [
+    { id: allyTeamId ?? 100, label: currentPlayer ? 'Tu equipo' : 'Equipo azul', tone: 'teal' },
+    { id: enemyTeamId ?? 200, label: currentPlayer ? 'Rival' : 'Equipo rojo', tone: 'rose' }
+  ];
+
+  if (!participants.length) {
+    return (
+      <div className="space-y-4">
+        <Panel>
+          <SectionHeading
+            title="Live Companion"
+            caption="Scouting desde Spectator API con equipos, hechizos y lectura rapida de partida."
+            action={<span className="rounded-md bg-zinc-800 px-2 py-1 text-xs font-bold text-zinc-400">Sin partida</span>}
+          />
+          <EmptyState title="No esta en partida en vivo" description="Cuando Riot reporte una partida activa, este panel muestra scouting y equipos." />
+        </Panel>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Panel>
+        <SectionHeading
+          title="Live Companion"
+          caption="Scouting desde Spectator API con equipos, hechizos y lectura rapida de partida."
+          action={<span className="rounded-md bg-emerald-500/10 px-2 py-1 text-xs font-bold text-emerald-300">Activa</span>}
+        />
+        <div className="grid gap-3 md:grid-cols-4">
+          <Metric label="Tiempo" value={formatGameClock(meta.gameLength)} tone="teal" />
+          <Metric label="Modo" value={meta.gameMode} />
+          <Metric label="Cola" value={meta.queueLabel.replace('Ranked ', '')} tone="amber" />
+          <Metric label="Jugadores" value={`${participants.length}/10`} tone="emerald" />
+        </div>
+      </Panel>
+
+      <div className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
+        <div className="grid gap-4 lg:grid-cols-2">
+          {teams.map((team) => {
+            const teamPlayers = participants.filter((player) => player.teamId === team.id);
+            return (
+              <Panel key={team.id} className={team.tone === 'teal' ? 'border-teal-500/25' : 'border-rose-500/25'}>
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-300">{team.label}</h3>
+                    <p className="text-sm text-zinc-500">{teamPlayers.length} campeones detectados</p>
+                  </div>
+                  <span className={team.tone === 'teal' ? 'rounded-md bg-teal-500/10 px-2 py-1 text-xs font-bold text-teal-200' : 'rounded-md bg-rose-500/10 px-2 py-1 text-xs font-bold text-rose-200'}>
+                    Team {team.id}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {teamPlayers.map((player) => {
+                    const champion = championCatalog?.[player.championId];
+                    const isCurrent = player.puuid && player.puuid === currentPuuid;
+                    return (
+                      <div key={`${player.teamId}-${player.summonerName}-${player.championId}`} className={clsx('rounded-md border bg-black/25 p-3', isCurrent ? 'border-teal-300/70' : 'border-zinc-800')}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            {champion ? (
+                              <ChampionAvatar championKey={champion.id} name={champion.name} version={version} className="h-12 w-12 shrink-0" />
+                            ) : (
+                              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-md bg-zinc-800 text-xs text-zinc-400">#{player.championId}</div>
+                            )}
+                            <div className="min-w-0">
+                              <p className="truncate font-semibold text-white">{player.summonerName}</p>
+                              <p className="text-xs text-zinc-500">{champion?.name ?? `Champion ${player.championId}`}</p>
+                            </div>
+                          </div>
+                          <LiveSpellStrip spellIds={[player.spell1Id, player.spell2Id]} spellCatalog={spellCatalog} version={version} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Panel>
+            );
+          })}
+        </div>
+
+        <div className="space-y-4">
+          <Panel>
+            <SectionHeading title="Draft snapshot" caption="Lectura de composicion con datos directos de Spectator." />
+            <div className="grid gap-3">
+              {teams.map((team) => {
+                const teamPlayers = participants.filter((player) => player.teamId === team.id);
+                return (
+                  <div key={`summary-${team.id}`} className="rounded-md border border-zinc-800 bg-black/25 p-3">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <span className="font-semibold text-white">{team.label}</span>
+                      <span className="text-xs text-zinc-500">{teamPlayers.length} picks</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {teamPlayers.map((player) => {
+                        const champion = championCatalog?.[player.championId];
+                        return champion ? (
+                          <ChampionAvatar key={`${team.id}-${player.puuid}-${player.championId}`} championKey={champion.id} name={champion.name} version={version} className="h-10 w-10" />
+                        ) : (
+                          <span key={`${team.id}-${player.puuid}-${player.championId}`} className="grid h-10 w-10 place-items-center rounded-md border border-zinc-800 bg-zinc-900 text-xs text-zinc-500">
+                            {player.championId}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Panel>
+
+          <Panel>
+            <SectionHeading title="Cheat sheet" caption="Referencia del jugador buscado basada en partidas clasificatorias recientes." />
+            {latest && latestChampion ? (
+              <div className="space-y-3">
+                <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
+                  <p className="text-xs uppercase tracking-wide text-zinc-500">Ultimo campeon</p>
+                  <p className="mt-1 font-semibold text-white">
+                    {latestChampion.name} - {shortQueue(latest.queueId)}
+                  </p>
+                </div>
+                <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
+                  <p className="text-xs uppercase tracking-wide text-zinc-500">Timing reciente</p>
+                  <p className="mt-1 text-sm text-zinc-300">
+                    {latest.csPerMinute.toFixed(1)} CS/min - {latest.killParticipation.toFixed(0)}% KP - {latest.visionScore} vision
+                  </p>
+                </div>
+                <div className="rounded-md border border-amber-800/50 bg-amber-950/20 p-3 text-sm text-amber-100">
+                  Prioriza vision antes de objetivos y juega alrededor del spike que mas aparece en tu historial reciente.
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-zinc-400">Busca un jugador para generar referencias desde sus partidas recientes.</p>
+            )}
+          </Panel>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+void LivePanel;
+
 interface GuidePlan {
   id: string;
   title: string;
@@ -919,28 +1136,43 @@ export const App = () => {
     staleTime: 1000 * 60 * 60 * 24
   });
 
+  const spellCatalogQuery = useQuery({
+    queryKey: ['ddragon-summoner-spells', version],
+    queryFn: () => getSummonerSpellCatalog(version),
+    enabled: Boolean(version),
+    staleTime: 1000 * 60 * 60 * 24
+  });
+
   const summaryQuery = useQuery({
     queryKey: ['summary', search],
     queryFn: () => riotApi.getSummary(search!.region, search!.gameName, search!.tagLine),
-    enabled: Boolean(search)
+    enabled: Boolean(search),
+    staleTime: 1000 * 60 * 5,
+    retry: false
   });
 
   const rankedMatchesQuery = useQuery({
     queryKey: ['ranked-matches', search, summaryQuery.data?.puuid, rankedQueue],
     queryFn: () => riotApi.getRankedMatches(search!.region, summaryQuery.data!.puuid, rankedQueue, rankedMatchFetchCount),
-    enabled: Boolean(search && summaryQuery.data?.puuid)
+    enabled: Boolean(search && summaryQuery.data?.puuid),
+    staleTime: 1000 * 60 * 2,
+    retry: false
   });
 
   const championInsightsQuery = useQuery({
     queryKey: ['champion-insights', search, summaryQuery.data?.puuid, rankedQueue],
     queryFn: () => riotApi.getChampionInsights(search!.region, summaryQuery.data!.puuid, rankedQueue, insightMatchFetchCount),
-    enabled: Boolean(search && summaryQuery.data?.puuid)
+    enabled: Boolean(search && summaryQuery.data?.puuid && (activeView === 'tier' || activeView === 'builds')),
+    staleTime: 1000 * 60 * 3,
+    retry: false
   });
 
   const liveQuery = useQuery({
     queryKey: ['live', search, summaryQuery.data?.puuid],
     queryFn: () => riotApi.getLive(search!.region, summaryQuery.data!.puuid),
-    enabled: Boolean(search && summaryQuery.data?.puuid)
+    enabled: Boolean(search && summaryQuery.data?.puuid && activeView === 'live'),
+    refetchInterval: activeView === 'live' ? 30000 : false,
+    retry: false
   });
 
   const matches = useMemo(() => rankedMatchesQuery.data ?? [], [rankedMatchesQuery.data]);
@@ -949,9 +1181,11 @@ export const App = () => {
   const isLoading = summaryQuery.isLoading || rankedMatchesQuery.isLoading;
   const mainError = (summaryQuery.error as Error)?.message || (rankedMatchesQuery.error as Error)?.message;
   const insightError = (championInsightsQuery.error as Error)?.message;
-  const activeError = mainError || ((activeView === 'builds' || activeView === 'tier') && insightError ? insightError : '');
+  const liveError = (liveQuery.error as Error)?.message;
+  const activeError = mainError || ((activeView === 'builds' || activeView === 'tier') && insightError ? insightError : '') || (activeView === 'live' && liveError ? liveError : '');
   const championCatalog = championCatalogQuery.data;
   const itemCatalog = itemCatalogQuery.data;
+  const spellCatalog = spellCatalogQuery.data;
 
   return (
     <MainLayout>
@@ -1040,16 +1274,20 @@ export const App = () => {
           <EmptyState title="Sin datos cargados" description="La búsqueda todavía no devolvió información." />
         )}
 
-        {activeView === 'live' && <LivePanel live={liveQuery.data} matches={matches} version={version} championCatalog={championCatalog} />}
-        {activeView === 'builds' && (
-          <BuildPanel
-            insights={championInsightsQuery.data}
-            isLoading={Boolean(search) && (summaryQuery.isLoading || championInsightsQuery.isLoading)}
-            hasPlayer={Boolean(summaryQuery.data?.puuid)}
+        {activeView === 'live' && (
+          <EnhancedLivePanel
+            live={liveQuery.data}
+            matches={matches}
             version={version}
             championCatalog={championCatalog}
-            itemCatalog={itemCatalog}
+            spellCatalog={spellCatalog}
+            currentPuuid={summaryQuery.data?.puuid}
           />
+        )}
+        {activeView === 'builds' && (
+          <div className="space-y-5">
+            <ChampionBuildLab version={version} championCatalog={championCatalog} itemCatalog={itemCatalog} />
+          </div>
         )}
         {activeView === 'tier' && (
           <TierPanel
