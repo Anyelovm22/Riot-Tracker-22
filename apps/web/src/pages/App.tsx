@@ -512,6 +512,7 @@ const TierPanel = ({
   const [mode, setMode] = useState<TierMode>('score');
   const [role, setRole] = useState<ChampionRole | 'ALL'>('ALL');
   const [selectedChampionKey, setSelectedChampionKey] = useState<string>('');
+  const [expandedChampionKey, setExpandedChampionKey] = useState<string>('');
   const rows = insights?.tierList ?? [];
   const availableRoles = [...new Set(rows.map((row) => row.role))]
     .sort((a, b) => roleOrder.indexOf(a) - roleOrder.indexOf(b))
@@ -525,6 +526,8 @@ const TierPanel = ({
     });
   const selectedRow = filteredRows.find((row) => `${row.championId}-${row.role}` === selectedChampionKey) ?? filteredRows[0];
   const selectedChampion = selectedRow ? getChampion(championCatalog, selectedRow.championId, selectedRow.championName) : undefined;
+  const expandedRow = filteredRows.find((row) => `${row.championId}-${row.role}` === expandedChampionKey);
+  const expandedChampion = expandedRow ? getChampion(championCatalog, expandedRow.championId, expandedRow.championName) : undefined;
 
   if (!hasPlayer) {
     return <EmptyState title="Busca un jugador para generar tier list" description="El ranking se calcula con campeones jugados en clasificatoria, no con datos inventados." />;
@@ -627,7 +630,11 @@ const TierPanel = ({
               {filteredRows.map((row, index) => {
                 const champion = getChampion(championCatalog, row.championId, row.championName);
                 return (
-                  <tr key={`${row.championId}-${row.role}`} className="border-b border-zinc-900 text-zinc-200">
+                  <tr
+                    key={`${row.championId}-${row.role}`}
+                    className="cursor-pointer border-b border-zinc-900 text-zinc-200 transition hover:bg-zinc-900/35"
+                    onClick={() => setExpandedChampionKey(`${row.championId}-${row.role}`)}
+                  >
                     <td className="py-2 font-semibold text-zinc-400">#{index + 1}</td>
                     <td>
                       <div className="flex items-center gap-2">
@@ -657,6 +664,41 @@ const TierPanel = ({
           </table>
         </div>
       </Panel>
+      {expandedRow && expandedChampion && (
+        <Panel className="border-indigo-500/30 bg-indigo-950/20">
+          <SectionHeading title={`Deep dive · ${expandedChampion.name}`} caption={`Rol ${roleLabels[expandedRow.role]} · Tier ${expandedRow.tier} · ${expandedRow.games} partidas`} />
+          <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+            <div className="rounded-lg border border-zinc-800 bg-black/20 p-4">
+              <p className="text-xs uppercase tracking-wide text-zinc-500">Pros (tu data)</p>
+              <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-200">
+                <li>Win rate de {formatDecimal(expandedRow.winRate)}% en muestra real.</li>
+                <li>Confianza de {formatDecimal(expandedRow.confidence)}% para este pick/rol.</li>
+                <li>Pick rate personal {formatDecimal(expandedRow.pickRate)}% en ranked.</li>
+              </ul>
+              <p className="mt-4 text-xs uppercase tracking-wide text-zinc-500">Defectos / riesgo</p>
+              <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-300">
+                <li>{expandedRow.games < 8 ? 'Muestra baja: las conclusiones aún pueden variar bastante.' : 'Muestra sólida: ya refleja patrón estable de rendimiento.'}</li>
+                <li>{expandedRow.winRate < 50 ? 'Pierdes más de lo que ganas con este pick actualmente.' : 'Resultado positivo, pero depende de mantener ejecución constante.'}</li>
+                <li>{expandedRow.confidence < 60 ? 'Confianza baja: pick sensible a errores de macro/tempo.' : 'Confianza aceptable: margen para forzar ventajas de línea/objetivo.'}</li>
+              </ul>
+            </div>
+            <div className="rounded-lg border border-zinc-800 bg-black/20 p-4">
+              <p className="text-xs uppercase tracking-wide text-zinc-500">Recomendación y build base</p>
+              <p className="mt-3 text-sm leading-6 text-zinc-200">
+                {expandedRow.tier === 'S+' || expandedRow.tier === 'S'
+                  ? 'Recomendado para rankeds ahora mismo: pick consistente para jugar en serie.'
+                  : expandedRow.tier === 'A'
+                    ? 'Pick situacionalmente fuerte: úsalo cuando tengas matchup y plan claro.'
+                    : 'No recomendado para subir LP en este momento; mejor úsalo en práctica o dodge spots malos.'}
+              </p>
+              <div className="mt-4 rounded-md border border-zinc-800 bg-zinc-950/60 p-3">
+                <p className="mb-2 text-xs uppercase tracking-wide text-zinc-500">Core items más frecuentes</p>
+                <ItemStrip itemIds={expandedRow.coreItemIds} version={version} itemCatalog={itemCatalog} />
+              </div>
+            </div>
+          </div>
+        </Panel>
+      )}
     </div>
   );
 };
@@ -1510,7 +1552,7 @@ export const App = () => {
     queryKey: ['live', search, summaryQuery.data?.puuid],
     queryFn: () => riotApi.getLive(search!.region, summaryQuery.data!.puuid),
     enabled: Boolean(search && summaryQuery.data?.puuid && activeView === 'live'),
-    refetchInterval: activeView === 'live' ? 30000 : false,
+    refetchInterval: activeView === 'live' ? 10000 : false,
     retry: false
   });
 
