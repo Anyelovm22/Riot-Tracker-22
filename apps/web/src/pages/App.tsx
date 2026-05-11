@@ -665,39 +665,46 @@ const TierPanel = ({
         </div>
       </Panel>
       {expandedRow && expandedChampion && (
-        <Panel className="border-indigo-500/30 bg-indigo-950/20">
-          <SectionHeading title={`Deep dive · ${expandedChampion.name}`} caption={`Rol ${roleLabels[expandedRow.role]} · Tier ${expandedRow.tier} · ${expandedRow.games} partidas`} />
-          <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-            <div className="rounded-lg border border-zinc-800 bg-black/20 p-4">
-              <p className="text-xs uppercase tracking-wide text-zinc-500">Pros (tu data)</p>
-              <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-200">
-                <li>Win rate de {formatDecimal(expandedRow.winRate)}% en muestra real.</li>
-                <li>Confianza de {formatDecimal(expandedRow.confidence)}% para este pick/rol.</li>
-                <li>Pick rate personal {formatDecimal(expandedRow.pickRate)}% en ranked.</li>
-              </ul>
-              <p className="mt-4 text-xs uppercase tracking-wide text-zinc-500">Defectos / riesgo</p>
-              <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-300">
-                <li>{expandedRow.games < 8 ? 'Muestra baja: las conclusiones aún pueden variar bastante.' : 'Muestra sólida: ya refleja patrón estable de rendimiento.'}</li>
-                <li>{expandedRow.winRate < 50 ? 'Pierdes más de lo que ganas con este pick actualmente.' : 'Resultado positivo, pero depende de mantener ejecución constante.'}</li>
-                <li>{expandedRow.confidence < 60 ? 'Confianza baja: pick sensible a errores de macro/tempo.' : 'Confianza aceptable: margen para forzar ventajas de línea/objetivo.'}</li>
-              </ul>
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-indigo-500/35 bg-[#0a1027] p-5 shadow-2xl shadow-black/50">
+            <div className="mb-4 flex items-center justify-between">
+              <SectionHeading title={`Deep dive · ${expandedChampion.name}`} caption={`Rol ${roleLabels[expandedRow.role]} · Tier ${expandedRow.tier} · ${expandedRow.games} partidas`} />
+              <button type="button" onClick={() => setExpandedChampionKey('')} className="rounded-md border border-zinc-700 bg-black/30 px-3 py-2 text-sm text-zinc-200 hover:border-zinc-500">
+                Cerrar
+              </button>
             </div>
-            <div className="rounded-lg border border-zinc-800 bg-black/20 p-4">
-              <p className="text-xs uppercase tracking-wide text-zinc-500">Recomendación y build base</p>
-              <p className="mt-3 text-sm leading-6 text-zinc-200">
-                {expandedRow.tier === 'S+' || expandedRow.tier === 'S'
-                  ? 'Recomendado para rankeds ahora mismo: pick consistente para jugar en serie.'
-                  : expandedRow.tier === 'A'
-                    ? 'Pick situacionalmente fuerte: úsalo cuando tengas matchup y plan claro.'
-                    : 'No recomendado para subir LP en este momento; mejor úsalo en práctica o dodge spots malos.'}
-              </p>
-              <div className="mt-4 rounded-md border border-zinc-800 bg-zinc-950/60 p-3">
-                <p className="mb-2 text-xs uppercase tracking-wide text-zinc-500">Core items más frecuentes</p>
-                <ItemStrip itemIds={expandedRow.coreItemIds} version={version} itemCatalog={itemCatalog} />
+            <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+              <div className="rounded-lg border border-zinc-800 bg-black/20 p-4">
+                <p className="text-xs uppercase tracking-wide text-zinc-500">Pros (tu data)</p>
+                <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-200">
+                  <li>Win rate de {formatDecimal(expandedRow.winRate)}% en muestra real.</li>
+                  <li>Confianza de {formatDecimal(expandedRow.confidence)}% para este pick/rol.</li>
+                  <li>Pick rate personal {formatDecimal(expandedRow.pickRate)}% en ranked.</li>
+                </ul>
+                <p className="mt-4 text-xs uppercase tracking-wide text-zinc-500">Defectos / riesgo</p>
+                <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-300">
+                  <li>{expandedRow.games < 8 ? 'Muestra baja: las conclusiones aún pueden variar bastante.' : 'Muestra sólida: ya refleja patrón estable de rendimiento.'}</li>
+                  <li>{expandedRow.winRate < 50 ? 'Pierdes más de lo que ganas con este pick actualmente.' : 'Resultado positivo, pero depende de mantener ejecución constante.'}</li>
+                  <li>{expandedRow.confidence < 60 ? 'Confianza baja: pick sensible a errores de macro/tempo.' : 'Confianza aceptable: margen para forzar ventajas de línea/objetivo.'}</li>
+                </ul>
+              </div>
+              <div className="rounded-lg border border-zinc-800 bg-black/20 p-4">
+                <p className="text-xs uppercase tracking-wide text-zinc-500">Recomendación y build base</p>
+                <p className="mt-3 text-sm leading-6 text-zinc-200">
+                  {expandedRow.tier === 'S+' || expandedRow.tier === 'S'
+                    ? 'Recomendado para rankeds ahora mismo: pick consistente para jugar en serie.'
+                    : expandedRow.tier === 'A'
+                      ? 'Pick situacionalmente fuerte: úsalo cuando tengas matchup y plan claro.'
+                      : 'No recomendado para subir LP en este momento; mejor úsalo en práctica o dodge spots malos.'}
+                </p>
+                <div className="mt-4 rounded-md border border-zinc-800 bg-zinc-950/60 p-3">
+                  <p className="mb-2 text-xs uppercase tracking-wide text-zinc-500">Core items más frecuentes</p>
+                  <ItemStrip itemIds={expandedRow.coreItemIds} version={version} itemCatalog={itemCatalog} />
+                </div>
               </div>
             </div>
           </div>
-        </Panel>
+        </div>
       )}
     </div>
   );
@@ -1049,6 +1056,11 @@ const EnhancedLivePanel = ({
   const targetTierRow = selectedEnemyPlayer
     ? insights?.tierList.find((row) => row.championId === selectedEnemyPlayer.championId)
     : undefined;
+  const liveFeedback = [
+    latest.deaths >= 7 ? `Has muerto ${latest.deaths} veces recientemente: baja riesgo antes del min 14.` : `Buen control de muertes (${latest.deaths}) para escalar.`,
+    latest.visionScore < playerAverage.vision ? `Tu vision (${latest.visionScore}) está por debajo de tu media (${formatDecimal(playerAverage.vision, 1)}).` : `Vision estable: ${latest.visionScore}, sigue priorizando wards de control.`,
+    latest.killParticipation < 55 ? `KP bajo (${latest.killParticipation.toFixed(0)}%): únete antes a objetivos.` : `KP sólido (${latest.killParticipation.toFixed(0)}%): mantén presencia en peleas clave.`
+  ];
 
   if (!participants.length) {
     return (
@@ -1203,6 +1215,14 @@ const EnhancedLivePanel = ({
                     <p className="mt-2 text-sm text-zinc-400">Aun no hay muestra suficiente para recomendar anti-items exactos contra ese pick; usa build estandar y prioriza control de vision.</p>
                   )}
                 </div>
+                <div className="rounded-md border border-sky-500/25 bg-sky-500/10 p-3">
+                  <p className="text-xs uppercase tracking-wide text-sky-100">Feedback live (coach)</p>
+                  <div className="mt-2 space-y-2">
+                    {liveFeedback.map((note) => (
+                      <p key={note} className="text-sm text-zinc-200">• {note}</p>
+                    ))}
+                  </div>
+                </div>
                 <div className="rounded-md border border-amber-800/50 bg-amber-950/20 p-3 text-sm text-amber-100">
                   Prioriza vision antes de objetivos y juega alrededor del spike que mas aparece en tu historial reciente.
                 </div>
@@ -1228,6 +1248,31 @@ interface GuidePlan {
   source: string;
   steps: string[];
 }
+
+const MatchReviewPanel = ({ match, championCatalog }: { match?: MatchOverview; championCatalog?: ChampionCatalogMap }) => {
+  if (!match) return null;
+  const champion = getChampion(championCatalog, match.championId, match.championName);
+  const kda = ((match.kills + match.assists) / Math.max(1, match.deaths)).toFixed(2);
+  const notes = [
+    match.deaths >= 8 ? 'Moriste demasiado: prioriza tempo, visión lateral y no pelear sin recursos.' : 'Buen control de riesgo en muertes.',
+    match.visionScore < 20 ? 'Vision baja para ranked; añade control ward en cada back importante.' : 'Vision aceptable para mantener mapa jugable.',
+    match.csPerMinute < 6.5 ? `Farming mejorable (${match.csPerMinute.toFixed(1)} cs/min).` : `Buen ritmo de farm (${match.csPerMinute.toFixed(1)} cs/min).`
+  ];
+  return (
+    <Panel className="border-indigo-500/25 bg-indigo-950/20">
+      <SectionHeading title={`Review · ${champion.name}`} caption={`${shortQueue(match.queueId)} · ${match.win ? 'Victoria' : 'Derrota'} · KDA ${kda}`} />
+      <div className="grid gap-3 md:grid-cols-4">
+        <Metric label="Daño" value={formatNumber(match.damageToChampions)} tone="teal" />
+        <Metric label="Oro" value={formatNumber(match.goldEarned)} tone="amber" />
+        <Metric label="Vision" value={`${match.visionScore}`} tone="emerald" />
+        <Metric label="KP" value={`${match.killParticipation.toFixed(0)}%`} tone="rose" />
+      </div>
+      <div className="mt-3 rounded-md border border-zinc-800 bg-black/20 p-3">
+        {notes.map((note) => <p key={note} className="text-sm text-zinc-200">• {note}</p>)}
+      </div>
+    </Panel>
+  );
+};
 
 const getMostPlayedChampion = (matches: MatchOverview[], championCatalog?: ChampionCatalogMap) => {
   const counts = new Map<number, { championName: string; count: number }>();
@@ -1493,6 +1538,7 @@ export const App = () => {
   const [search, setSearch] = useState<SearchState | null>(null);
   const [activeView, setActiveView] = useState<ViewKey>('profile');
   const [selectedChallenge, setSelectedChallenge] = useState('farm-10');
+  const [selectedReviewMatchId, setSelectedReviewMatchId] = useState('');
   const [rankedQueue, setRankedQueue] = useState<RankedQueueKey>('solo');
 
   const dataDragonQuery = useQuery({
@@ -1557,6 +1603,7 @@ export const App = () => {
   });
 
   const matches = useMemo(() => rankedMatchesQuery.data ?? [], [rankedMatchesQuery.data]);
+  const selectedReviewMatch = matches.find((match) => match.matchId === selectedReviewMatchId) ?? matches[0];
   const analytics = useMemo(() => buildAnalytics(summaryQuery.data, matches), [summaryQuery.data, matches]);
   const activeQueueLabel = rankedQueueOptions.find((option) => option.key === rankedQueue)?.label ?? 'Solo/Duo';
   const isLoading = summaryQuery.isLoading || rankedMatchesQuery.isLoading;
@@ -1668,7 +1715,21 @@ export const App = () => {
             <section className="grid gap-4 lg:grid-cols-3">
               <div className="lg:col-span-2">
                 {matches.length > 0 ? (
-                  <MatchHistoryTable matches={matches} dataDragonVersion={version} championCatalog={championCatalog} title={`Historial ${activeQueueLabel}`} />
+                  <div className="space-y-3">
+                    <MatchHistoryTable matches={matches} dataDragonVersion={version} championCatalog={championCatalog} title={`Historial ${activeQueueLabel}`} />
+                    <Panel>
+                      <div className="grid gap-3 md:grid-cols-[minmax(220px,1fr)_auto]">
+                        <Select
+                          label="Partida para review"
+                          value={selectedReviewMatch?.matchId ?? ''}
+                          onChange={setSelectedReviewMatchId}
+                          options={matches.slice(0, 15).map((match) => ({ value: match.matchId, label: `${new Date(match.gameCreation).toLocaleDateString('es')} · ${match.championName} · ${match.win ? 'Win' : 'Lose'}` }))}
+                        />
+                        <Metric label="Muestras review" value={`${matches.length}`} tone="teal" />
+                      </div>
+                    </Panel>
+                    <MatchReviewPanel match={selectedReviewMatch} championCatalog={championCatalog} />
+                  </div>
                 ) : (
                   <EmptyState title={`Sin partidas ${activeQueueLabel}`} description="No encontramos partidas clasificatorias cargadas para este jugador." />
                 )}
