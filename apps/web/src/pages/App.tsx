@@ -511,6 +511,7 @@ const TierPanel = ({
 }) => {
   const [mode, setMode] = useState<TierMode>('score');
   const [role, setRole] = useState<ChampionRole | 'ALL'>('ALL');
+  const [selectedChampionKey, setSelectedChampionKey] = useState<string>('');
   const rows = insights?.tierList ?? [];
   const availableRoles = [...new Set(rows.map((row) => row.role))]
     .sort((a, b) => roleOrder.indexOf(a) - roleOrder.indexOf(b))
@@ -522,6 +523,8 @@ const TierPanel = ({
       if (mode === 'sample') return b.games - a.games || b.score - a.score;
       return b.score - a.score || b.confidence - a.confidence;
     });
+  const selectedRow = filteredRows.find((row) => `${row.championId}-${row.role}` === selectedChampionKey) ?? filteredRows[0];
+  const selectedChampion = selectedRow ? getChampion(championCatalog, selectedRow.championId, selectedRow.championName) : undefined;
 
   if (!hasPlayer) {
     return <EmptyState title="Busca un jugador para generar tier list" description="El ranking se calcula con campeones jugados en clasificatoria, no con datos inventados." />;
@@ -559,6 +562,51 @@ const TierPanel = ({
 
       <Panel>
         <SectionHeading title="Tier list personal" caption={`Fuente ${insights?.source ?? 'api'} · ${insights?.queue ?? 'ranked'} · ${insights?.count ?? 0} partidas solicitadas`} />
+        <div className="mb-4 grid gap-3 md:grid-cols-[minmax(200px,1fr)_auto]">
+          <Select
+            label="Campeon a desglosar"
+            value={selectedRow ? `${selectedRow.championId}-${selectedRow.role}` : ''}
+            onChange={setSelectedChampionKey}
+            options={filteredRows.map((row) => ({ value: `${row.championId}-${row.role}`, label: `${row.championName} · ${roleLabels[row.role]}` }))}
+          />
+          <Metric label="Rol foco" value={role === 'ALL' ? 'General' : roleLabels[role]} tone="teal" />
+        </div>
+        {selectedRow && selectedChampion && (
+          <div className="mb-4 rounded-lg border border-sky-500/20 bg-sky-500/10 p-4">
+            <div className="mb-3 flex items-center gap-3">
+              <ChampionAvatar championKey={selectedChampion.key} name={selectedChampion.name} version={version} className="h-12 w-12" />
+              <div>
+                <p className="font-semibold text-white">{selectedChampion.name} · {roleLabels[selectedRow.role]}</p>
+                <p className="text-xs text-zinc-300">Feedback enfocado: datos reales de tus rankeds, sin inflar resultados.</p>
+              </div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
+                <p className="text-xs uppercase tracking-wide text-zinc-500">Win rate ({formatDecimal(selectedRow.winRate)}%)</p>
+                <ProgressBar value={selectedRow.winRate} tone={selectedRow.winRate >= 53 ? 'emerald' : selectedRow.winRate >= 50 ? 'teal' : 'rose'} />
+              </div>
+              <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
+                <p className="text-xs uppercase tracking-wide text-zinc-500">Confianza ({formatDecimal(selectedRow.confidence)}%)</p>
+                <ProgressBar value={selectedRow.confidence} tone={selectedRow.confidence >= 70 ? 'emerald' : selectedRow.confidence >= 55 ? 'amber' : 'rose'} />
+              </div>
+              <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
+                <p className="text-xs uppercase tracking-wide text-zinc-500">Score ({formatDecimal(selectedRow.score)})</p>
+                <ProgressBar value={Math.min(100, selectedRow.score)} tone={selectedRow.score >= 65 ? 'teal' : 'amber'} />
+              </div>
+              <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
+                <p className="text-xs uppercase tracking-wide text-zinc-500">Pick rate ({formatDecimal(selectedRow.pickRate)}%)</p>
+                <ProgressBar value={selectedRow.pickRate} tone="teal" />
+              </div>
+            </div>
+            <p className="mt-3 text-sm text-zinc-200">
+              {selectedRow.tier === 'S+' || selectedRow.tier === 'S'
+                ? `Sí es pick para subir: tu muestra marca ${formatDecimal(selectedRow.winRate)}% WR en ${selectedRow.games} partidas.`
+                : selectedRow.tier === 'A'
+                  ? `Es viable pero exige ejecución: buen score (${formatDecimal(selectedRow.score)}) con margen de error moderado.`
+                  : `Sé sincero contigo: hoy no es pick estable para rankeds (${formatDecimal(selectedRow.winRate)}% WR).`}
+            </p>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead>
@@ -685,7 +733,14 @@ const ChallengePanel = ({
   }
 
   const completed = analytics.challenges.filter((challenge) => challenge.met).length;
-  const selected = analytics.challenges.find((challenge) => challenge.id === selectedId) ?? analytics.challenges[0];
+  const roleFocusedChallenges = analytics.challenges.filter((challenge) => {
+    if (dominantRole === 'JUNGLE') return /objetivo|vision|muerte/i.test(challenge.title + challenge.target);
+    if (dominantRole === 'SUPPORT') return /vision|control|asistencia/i.test(challenge.title + challenge.target);
+    if (dominantRole === 'ADC') return /farm|cs|minuto|daño/i.test(challenge.title + challenge.target);
+    return true;
+  });
+  const challengePool = roleFocusedChallenges.length ? roleFocusedChallenges : analytics.challenges;
+  const selected = challengePool.find((challenge) => challenge.id === selectedId) ?? challengePool[0];
   const aiChallenges = recommendations?.challenges ?? [];
   const selectedAiChallenge = aiChallenges.find((challenge) => challenge.id === selected.id || challenge.skill === selected.skill) ?? aiChallenges[0];
 
@@ -694,9 +749,9 @@ const ChallengePanel = ({
       <CoachInsightPanel recommendations={recommendations} isLoading={isAiLoading} error={aiError} dominantRole={dominantRole} />
       <div className="grid gap-4 lg:grid-cols-[0.72fr_1.28fr]">
         <Panel>
-          <SectionHeading title="Retos sugeridos" caption={`${completed}/${analytics.challenges.length} completados con la muestra actual`} />
+          <SectionHeading title="Retos sugeridos" caption={`${completed}/${analytics.challenges.length} completados · foco ${roleLabels[dominantRole]}`} />
           <div className="space-y-2">
-            {analytics.challenges.map((challenge) => (
+            {challengePool.map((challenge) => (
               <button
                 type="button"
                 key={challenge.id}
@@ -743,7 +798,7 @@ const ChallengePanel = ({
             </div>
           )}
           <div className="grid gap-3 md:grid-cols-2">
-            {analytics.challenges.map((challenge) => (
+            {challengePool.map((challenge) => (
               <ChallengeCard challenge={challenge} active={selected.id === challenge.id} key={challenge.id} />
             ))}
           </div>
@@ -1594,6 +1649,8 @@ export const App = () => {
             championCatalog={championCatalog}
             spellCatalog={spellCatalog}
             currentPuuid={summaryQuery.data?.puuid}
+            insights={championInsightsQuery.data}
+            itemCatalog={itemCatalog}
           />
         )}
         {activeView === 'builds' && (
