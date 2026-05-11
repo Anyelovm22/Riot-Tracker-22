@@ -572,6 +572,7 @@ const TierPanel = ({
                 <th>Pick</th>
                 <th>Partidas</th>
                 <th>Core</th>
+                <th>Feedback IA</th>
               </tr>
             </thead>
             <tbody>
@@ -600,6 +601,7 @@ const TierPanel = ({
                     <td>
                       <ItemStrip itemIds={row.coreItemIds} version={version} itemCatalog={itemCatalog} size="sm" />
                     </td>
+                    <td className="text-xs text-zinc-300">{row.tier === "S+" || row.tier === "S" ? `Si quieres LP estable, sí conviene: ${formatDecimal(row.winRate)}% WR y ${row.games} partidas reales.` : row.tier === "A" ? `Es jugable, pero no gratis: el pick funciona solo si mantienes ${formatDecimal(row.confidence)}% de confianza.` : `No conviene spamearlo ahora: ${formatDecimal(row.winRate)}% WR en ${row.games} partidas no sostiene rankeds.`}</td>
                   </tr>
                 );
               })}
@@ -915,7 +917,9 @@ const EnhancedLivePanel = ({
   version,
   championCatalog,
   spellCatalog,
-  currentPuuid
+  currentPuuid,
+  insights,
+  itemCatalog
 }: {
   live?: Record<string, unknown> | null;
   matches: MatchOverview[];
@@ -923,6 +927,8 @@ const EnhancedLivePanel = ({
   championCatalog?: ChampionCatalogMap;
   spellCatalog?: SummonerSpellCatalogMap;
   currentPuuid?: string;
+  insights?: ChampionInsightsResponse;
+  itemCatalog?: ItemCatalogMap;
 }) => {
   const participants = getEnhancedLiveParticipants(live);
   const meta = getLiveMeta(live);
@@ -935,6 +941,17 @@ const EnhancedLivePanel = ({
     { id: allyTeamId ?? 100, label: currentPlayer ? 'Tu equipo' : 'Equipo azul', tone: 'teal' },
     { id: enemyTeamId ?? 200, label: currentPlayer ? 'Rival' : 'Equipo rojo', tone: 'rose' }
   ];
+  const enemyPlayers = participants.filter((player) => player.teamId === enemyTeamId);
+  const [selectedEnemy, setSelectedEnemy] = useState<string>('team');
+  const selectedEnemyPlayer = enemyPlayers.find((player) => `${player.teamId}-${player.summonerName}-${player.championId}` === selectedEnemy);
+  const playerAverage = {
+    damage: matches.length ? matches.reduce((acc, match) => acc + match.damageToChampions, 0) / matches.length : 0,
+    vision: matches.length ? matches.reduce((acc, match) => acc + match.visionScore, 0) / matches.length : 0,
+    gold: matches.length ? matches.reduce((acc, match) => acc + match.goldEarned, 0) / matches.length : 0
+  };
+  const targetTierRow = selectedEnemyPlayer
+    ? insights?.tierList.find((row) => row.championId === selectedEnemyPlayer.championId)
+    : undefined;
 
   if (!participants.length) {
     return (
@@ -1042,9 +1059,30 @@ const EnhancedLivePanel = ({
           </Panel>
 
           <Panel>
-            <SectionHeading title="Cheat sheet" caption="Referencia del jugador buscado basada en partidas clasificatorias recientes." />
+            <SectionHeading title="Cheat sheet" caption="Comparativa de rendimiento y plan anti-build en tiempo real." />
             {latest && latestChampion ? (
               <div className="space-y-3">
+                <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">Objetivo enemigo
+                  <select
+                    value={selectedEnemy}
+                    onChange={(event) => setSelectedEnemy(event.target.value)}
+                    className="min-h-10 rounded-md border border-zinc-800 bg-black/35 px-3 py-2 text-sm font-normal normal-case tracking-normal text-zinc-100 outline-none transition focus:border-teal-400"
+                  >
+                    <option value="team">Team enemigo completo</option>
+                    {enemyPlayers.map((player) => {
+                      const key = `${player.teamId}-${player.summonerName}-${player.championId}`;
+                      const champion = championCatalog?.[player.championId];
+                      return (
+                        <option key={key} value={key}>{player.summonerName} · {champion?.name ?? `Champ ${player.championId}`}</option>
+                      );
+                    })}
+                  </select>
+                </label>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <Metric label="Daño" value={`${formatNumber(latest.damageToChampions)} / ${formatNumber(playerAverage.damage)}`} tone={latest.damageToChampions >= playerAverage.damage ? 'emerald' : 'amber'} />
+                  <Metric label="Vision" value={`${latest.visionScore} / ${formatDecimal(playerAverage.vision, 1)}`} tone={latest.visionScore >= playerAverage.vision ? 'emerald' : 'amber'} />
+                  <Metric label="Oro" value={`${formatNumber(latest.goldEarned)} / ${formatNumber(playerAverage.gold)}`} tone={latest.goldEarned >= playerAverage.gold ? 'emerald' : 'amber'} />
+                </div>
                 <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
                   <p className="text-xs uppercase tracking-wide text-zinc-500">Ultimo campeon</p>
                   <p className="mt-1 font-semibold text-white">
@@ -1056,6 +1094,17 @@ const EnhancedLivePanel = ({
                   <p className="mt-1 text-sm text-zinc-300">
                     {latest.csPerMinute.toFixed(1)} CS/min - {latest.killParticipation.toFixed(0)}% KP - {latest.visionScore} vision
                   </p>
+                </div>
+                <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
+                  <p className="text-xs uppercase tracking-wide text-zinc-500">Plan anti-build</p>
+                  {targetTierRow ? (
+                    <div className="mt-2 space-y-2">
+                      <p className="text-sm text-zinc-300">Este pick aparece en tu tier personal como {targetTierRow.tier} con {formatDecimal(targetTierRow.winRate)}% win rate. Responde con estos items base:</p>
+                      <ItemStrip itemIds={targetTierRow.coreItemIds} version={version} itemCatalog={itemCatalog} size="sm" />
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-zinc-400">Aun no hay muestra suficiente para recomendar anti-items exactos contra ese pick; usa build estandar y prioriza control de vision.</p>
+                  )}
                 </div>
                 <div className="rounded-md border border-amber-800/50 bg-amber-950/20 p-3 text-sm text-amber-100">
                   Prioriza vision antes de objetivos y juega alrededor del spike que mas aparece en tu historial reciente.
