@@ -511,6 +511,8 @@ const TierPanel = ({
 }) => {
   const [mode, setMode] = useState<TierMode>('score');
   const [role, setRole] = useState<ChampionRole | 'ALL'>('ALL');
+  const [selectedChampionKey, setSelectedChampionKey] = useState<string>('');
+  const [expandedChampionKey, setExpandedChampionKey] = useState<string>('');
   const rows = insights?.tierList ?? [];
   const availableRoles = [...new Set(rows.map((row) => row.role))]
     .sort((a, b) => roleOrder.indexOf(a) - roleOrder.indexOf(b))
@@ -522,6 +524,10 @@ const TierPanel = ({
       if (mode === 'sample') return b.games - a.games || b.score - a.score;
       return b.score - a.score || b.confidence - a.confidence;
     });
+  const selectedRow = filteredRows.find((row) => `${row.championId}-${row.role}` === selectedChampionKey) ?? filteredRows[0];
+  const selectedChampion = selectedRow ? getChampion(championCatalog, selectedRow.championId, selectedRow.championName) : undefined;
+  const expandedRow = filteredRows.find((row) => `${row.championId}-${row.role}` === expandedChampionKey);
+  const expandedChampion = expandedRow ? getChampion(championCatalog, expandedRow.championId, expandedRow.championName) : undefined;
 
   if (!hasPlayer) {
     return <EmptyState title="Busca un jugador para generar tier list" description="El ranking se calcula con campeones jugados en clasificatoria, no con datos inventados." />;
@@ -559,6 +565,51 @@ const TierPanel = ({
 
       <Panel>
         <SectionHeading title="Tier list personal" caption={`Fuente ${insights?.source ?? 'api'} · ${insights?.queue ?? 'ranked'} · ${insights?.count ?? 0} partidas solicitadas`} />
+        <div className="mb-4 grid gap-3 md:grid-cols-[minmax(200px,1fr)_auto]">
+          <Select
+            label="Campeon a desglosar"
+            value={selectedRow ? `${selectedRow.championId}-${selectedRow.role}` : ''}
+            onChange={setSelectedChampionKey}
+            options={filteredRows.map((row) => ({ value: `${row.championId}-${row.role}`, label: `${row.championName} · ${roleLabels[row.role]}` }))}
+          />
+          <Metric label="Rol foco" value={role === 'ALL' ? 'General' : roleLabels[role]} tone="teal" />
+        </div>
+        {selectedRow && selectedChampion && (
+          <div className="mb-4 rounded-lg border border-sky-500/20 bg-sky-500/10 p-4">
+            <div className="mb-3 flex items-center gap-3">
+              <ChampionAvatar championKey={selectedChampion.key} name={selectedChampion.name} version={version} className="h-12 w-12" />
+              <div>
+                <p className="font-semibold text-white">{selectedChampion.name} · {roleLabels[selectedRow.role]}</p>
+                <p className="text-xs text-zinc-300">Feedback enfocado: datos reales de tus rankeds, sin inflar resultados.</p>
+              </div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
+                <p className="text-xs uppercase tracking-wide text-zinc-500">Win rate ({formatDecimal(selectedRow.winRate)}%)</p>
+                <ProgressBar value={selectedRow.winRate} tone={selectedRow.winRate >= 53 ? 'emerald' : selectedRow.winRate >= 50 ? 'teal' : 'rose'} />
+              </div>
+              <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
+                <p className="text-xs uppercase tracking-wide text-zinc-500">Confianza ({formatDecimal(selectedRow.confidence)}%)</p>
+                <ProgressBar value={selectedRow.confidence} tone={selectedRow.confidence >= 70 ? 'emerald' : selectedRow.confidence >= 55 ? 'amber' : 'rose'} />
+              </div>
+              <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
+                <p className="text-xs uppercase tracking-wide text-zinc-500">Score ({formatDecimal(selectedRow.score)})</p>
+                <ProgressBar value={Math.min(100, selectedRow.score)} tone={selectedRow.score >= 65 ? 'teal' : 'amber'} />
+              </div>
+              <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
+                <p className="text-xs uppercase tracking-wide text-zinc-500">Pick rate ({formatDecimal(selectedRow.pickRate)}%)</p>
+                <ProgressBar value={selectedRow.pickRate} tone="teal" />
+              </div>
+            </div>
+            <p className="mt-3 text-sm text-zinc-200">
+              {selectedRow.tier === 'S+' || selectedRow.tier === 'S'
+                ? `Sí es pick para subir: tu muestra marca ${formatDecimal(selectedRow.winRate)}% WR en ${selectedRow.games} partidas.`
+                : selectedRow.tier === 'A'
+                  ? `Es viable pero exige ejecución: buen score (${formatDecimal(selectedRow.score)}) con margen de error moderado.`
+                  : `Sé sincero contigo: hoy no es pick estable para rankeds (${formatDecimal(selectedRow.winRate)}% WR).`}
+            </p>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead>
@@ -572,13 +623,18 @@ const TierPanel = ({
                 <th>Pick</th>
                 <th>Partidas</th>
                 <th>Core</th>
+                <th>Feedback IA</th>
               </tr>
             </thead>
             <tbody>
               {filteredRows.map((row, index) => {
                 const champion = getChampion(championCatalog, row.championId, row.championName);
                 return (
-                  <tr key={`${row.championId}-${row.role}`} className="border-b border-zinc-900 text-zinc-200">
+                  <tr
+                    key={`${row.championId}-${row.role}`}
+                    className="cursor-pointer border-b border-zinc-900 text-zinc-200 transition hover:bg-zinc-900/35"
+                    onClick={() => setExpandedChampionKey(`${row.championId}-${row.role}`)}
+                  >
                     <td className="py-2 font-semibold text-zinc-400">#{index + 1}</td>
                     <td>
                       <div className="flex items-center gap-2">
@@ -600,6 +656,7 @@ const TierPanel = ({
                     <td>
                       <ItemStrip itemIds={row.coreItemIds} version={version} itemCatalog={itemCatalog} size="sm" />
                     </td>
+                    <td className="text-xs text-zinc-300">{row.tier === "S+" || row.tier === "S" ? `Si quieres LP estable, sí conviene: ${formatDecimal(row.winRate)}% WR y ${row.games} partidas reales.` : row.tier === "A" ? `Es jugable, pero no gratis: el pick funciona solo si mantienes ${formatDecimal(row.confidence)}% de confianza.` : `No conviene spamearlo ahora: ${formatDecimal(row.winRate)}% WR en ${row.games} partidas no sostiene rankeds.`}</td>
                   </tr>
                 );
               })}
@@ -607,6 +664,41 @@ const TierPanel = ({
           </table>
         </div>
       </Panel>
+      {expandedRow && expandedChampion && (
+        <Panel className="border-indigo-500/30 bg-indigo-950/20">
+          <SectionHeading title={`Deep dive · ${expandedChampion.name}`} caption={`Rol ${roleLabels[expandedRow.role]} · Tier ${expandedRow.tier} · ${expandedRow.games} partidas`} />
+          <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+            <div className="rounded-lg border border-zinc-800 bg-black/20 p-4">
+              <p className="text-xs uppercase tracking-wide text-zinc-500">Pros (tu data)</p>
+              <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-200">
+                <li>Win rate de {formatDecimal(expandedRow.winRate)}% en muestra real.</li>
+                <li>Confianza de {formatDecimal(expandedRow.confidence)}% para este pick/rol.</li>
+                <li>Pick rate personal {formatDecimal(expandedRow.pickRate)}% en ranked.</li>
+              </ul>
+              <p className="mt-4 text-xs uppercase tracking-wide text-zinc-500">Defectos / riesgo</p>
+              <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-300">
+                <li>{expandedRow.games < 8 ? 'Muestra baja: las conclusiones aún pueden variar bastante.' : 'Muestra sólida: ya refleja patrón estable de rendimiento.'}</li>
+                <li>{expandedRow.winRate < 50 ? 'Pierdes más de lo que ganas con este pick actualmente.' : 'Resultado positivo, pero depende de mantener ejecución constante.'}</li>
+                <li>{expandedRow.confidence < 60 ? 'Confianza baja: pick sensible a errores de macro/tempo.' : 'Confianza aceptable: margen para forzar ventajas de línea/objetivo.'}</li>
+              </ul>
+            </div>
+            <div className="rounded-lg border border-zinc-800 bg-black/20 p-4">
+              <p className="text-xs uppercase tracking-wide text-zinc-500">Recomendación y build base</p>
+              <p className="mt-3 text-sm leading-6 text-zinc-200">
+                {expandedRow.tier === 'S+' || expandedRow.tier === 'S'
+                  ? 'Recomendado para rankeds ahora mismo: pick consistente para jugar en serie.'
+                  : expandedRow.tier === 'A'
+                    ? 'Pick situacionalmente fuerte: úsalo cuando tengas matchup y plan claro.'
+                    : 'No recomendado para subir LP en este momento; mejor úsalo en práctica o dodge spots malos.'}
+              </p>
+              <div className="mt-4 rounded-md border border-zinc-800 bg-zinc-950/60 p-3">
+                <p className="mb-2 text-xs uppercase tracking-wide text-zinc-500">Core items más frecuentes</p>
+                <ItemStrip itemIds={expandedRow.coreItemIds} version={version} itemCatalog={itemCatalog} />
+              </div>
+            </div>
+          </div>
+        </Panel>
+      )}
     </div>
   );
 };
@@ -683,7 +775,14 @@ const ChallengePanel = ({
   }
 
   const completed = analytics.challenges.filter((challenge) => challenge.met).length;
-  const selected = analytics.challenges.find((challenge) => challenge.id === selectedId) ?? analytics.challenges[0];
+  const roleFocusedChallenges = analytics.challenges.filter((challenge) => {
+    if (dominantRole === 'JUNGLE') return /objetivo|vision|muerte/i.test(challenge.title + challenge.target);
+    if (dominantRole === 'SUPPORT') return /vision|control|asistencia/i.test(challenge.title + challenge.target);
+    if (dominantRole === 'ADC') return /farm|cs|minuto|daño/i.test(challenge.title + challenge.target);
+    return true;
+  });
+  const challengePool = roleFocusedChallenges.length ? roleFocusedChallenges : analytics.challenges;
+  const selected = challengePool.find((challenge) => challenge.id === selectedId) ?? challengePool[0];
   const aiChallenges = recommendations?.challenges ?? [];
   const selectedAiChallenge = aiChallenges.find((challenge) => challenge.id === selected.id || challenge.skill === selected.skill) ?? aiChallenges[0];
 
@@ -692,9 +791,9 @@ const ChallengePanel = ({
       <CoachInsightPanel recommendations={recommendations} isLoading={isAiLoading} error={aiError} dominantRole={dominantRole} />
       <div className="grid gap-4 lg:grid-cols-[0.72fr_1.28fr]">
         <Panel>
-          <SectionHeading title="Retos sugeridos" caption={`${completed}/${analytics.challenges.length} completados con la muestra actual`} />
+          <SectionHeading title="Retos sugeridos" caption={`${completed}/${analytics.challenges.length} completados · foco ${roleLabels[dominantRole]}`} />
           <div className="space-y-2">
-            {analytics.challenges.map((challenge) => (
+            {challengePool.map((challenge) => (
               <button
                 type="button"
                 key={challenge.id}
@@ -741,7 +840,7 @@ const ChallengePanel = ({
             </div>
           )}
           <div className="grid gap-3 md:grid-cols-2">
-            {analytics.challenges.map((challenge) => (
+            {challengePool.map((challenge) => (
               <ChallengeCard challenge={challenge} active={selected.id === challenge.id} key={challenge.id} />
             ))}
           </div>
@@ -915,7 +1014,9 @@ const EnhancedLivePanel = ({
   version,
   championCatalog,
   spellCatalog,
-  currentPuuid
+  currentPuuid,
+  insights,
+  itemCatalog
 }: {
   live?: Record<string, unknown> | null;
   matches: MatchOverview[];
@@ -923,6 +1024,8 @@ const EnhancedLivePanel = ({
   championCatalog?: ChampionCatalogMap;
   spellCatalog?: SummonerSpellCatalogMap;
   currentPuuid?: string;
+  insights?: ChampionInsightsResponse;
+  itemCatalog?: ItemCatalogMap;
 }) => {
   const participants = getEnhancedLiveParticipants(live);
   const meta = getLiveMeta(live);
@@ -935,6 +1038,17 @@ const EnhancedLivePanel = ({
     { id: allyTeamId ?? 100, label: currentPlayer ? 'Tu equipo' : 'Equipo azul', tone: 'teal' },
     { id: enemyTeamId ?? 200, label: currentPlayer ? 'Rival' : 'Equipo rojo', tone: 'rose' }
   ];
+  const enemyPlayers = participants.filter((player) => player.teamId === enemyTeamId);
+  const [selectedEnemy, setSelectedEnemy] = useState<string>('team');
+  const selectedEnemyPlayer = enemyPlayers.find((player) => `${player.teamId}-${player.summonerName}-${player.championId}` === selectedEnemy);
+  const playerAverage = {
+    damage: matches.length ? matches.reduce((acc, match) => acc + match.damageToChampions, 0) / matches.length : 0,
+    vision: matches.length ? matches.reduce((acc, match) => acc + match.visionScore, 0) / matches.length : 0,
+    gold: matches.length ? matches.reduce((acc, match) => acc + match.goldEarned, 0) / matches.length : 0
+  };
+  const targetTierRow = selectedEnemyPlayer
+    ? insights?.tierList.find((row) => row.championId === selectedEnemyPlayer.championId)
+    : undefined;
 
   if (!participants.length) {
     return (
@@ -1042,9 +1156,30 @@ const EnhancedLivePanel = ({
           </Panel>
 
           <Panel>
-            <SectionHeading title="Cheat sheet" caption="Referencia del jugador buscado basada en partidas clasificatorias recientes." />
+            <SectionHeading title="Cheat sheet" caption="Comparativa de rendimiento y plan anti-build en tiempo real." />
             {latest && latestChampion ? (
               <div className="space-y-3">
+                <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">Objetivo enemigo
+                  <select
+                    value={selectedEnemy}
+                    onChange={(event) => setSelectedEnemy(event.target.value)}
+                    className="min-h-10 rounded-md border border-zinc-800 bg-black/35 px-3 py-2 text-sm font-normal normal-case tracking-normal text-zinc-100 outline-none transition focus:border-teal-400"
+                  >
+                    <option value="team">Team enemigo completo</option>
+                    {enemyPlayers.map((player) => {
+                      const key = `${player.teamId}-${player.summonerName}-${player.championId}`;
+                      const champion = championCatalog?.[player.championId];
+                      return (
+                        <option key={key} value={key}>{player.summonerName} · {champion?.name ?? `Champ ${player.championId}`}</option>
+                      );
+                    })}
+                  </select>
+                </label>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <Metric label="Daño" value={`${formatNumber(latest.damageToChampions)} / ${formatNumber(playerAverage.damage)}`} tone={latest.damageToChampions >= playerAverage.damage ? 'emerald' : 'amber'} />
+                  <Metric label="Vision" value={`${latest.visionScore} / ${formatDecimal(playerAverage.vision, 1)}`} tone={latest.visionScore >= playerAverage.vision ? 'emerald' : 'amber'} />
+                  <Metric label="Oro" value={`${formatNumber(latest.goldEarned)} / ${formatNumber(playerAverage.gold)}`} tone={latest.goldEarned >= playerAverage.gold ? 'emerald' : 'amber'} />
+                </div>
                 <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
                   <p className="text-xs uppercase tracking-wide text-zinc-500">Ultimo campeon</p>
                   <p className="mt-1 font-semibold text-white">
@@ -1056,6 +1191,17 @@ const EnhancedLivePanel = ({
                   <p className="mt-1 text-sm text-zinc-300">
                     {latest.csPerMinute.toFixed(1)} CS/min - {latest.killParticipation.toFixed(0)}% KP - {latest.visionScore} vision
                   </p>
+                </div>
+                <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
+                  <p className="text-xs uppercase tracking-wide text-zinc-500">Plan anti-build</p>
+                  {targetTierRow ? (
+                    <div className="mt-2 space-y-2">
+                      <p className="text-sm text-zinc-300">Este pick aparece en tu tier personal como {targetTierRow.tier} con {formatDecimal(targetTierRow.winRate)}% win rate. Responde con estos items base:</p>
+                      <ItemStrip itemIds={targetTierRow.coreItemIds} version={version} itemCatalog={itemCatalog} size="sm" />
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-zinc-400">Aun no hay muestra suficiente para recomendar anti-items exactos contra ese pick; usa build estandar y prioriza control de vision.</p>
+                  )}
                 </div>
                 <div className="rounded-md border border-amber-800/50 bg-amber-950/20 p-3 text-sm text-amber-100">
                   Prioriza vision antes de objetivos y juega alrededor del spike que mas aparece en tu historial reciente.
@@ -1406,7 +1552,7 @@ export const App = () => {
     queryKey: ['live', search, summaryQuery.data?.puuid],
     queryFn: () => riotApi.getLive(search!.region, summaryQuery.data!.puuid),
     enabled: Boolean(search && summaryQuery.data?.puuid && activeView === 'live'),
-    refetchInterval: activeView === 'live' ? 30000 : false,
+    refetchInterval: activeView === 'live' ? 10000 : false,
     retry: false
   });
 
@@ -1545,6 +1691,8 @@ export const App = () => {
             championCatalog={championCatalog}
             spellCatalog={spellCatalog}
             currentPuuid={summaryQuery.data?.puuid}
+            insights={championInsightsQuery.data}
+            itemCatalog={itemCatalog}
           />
         )}
         {activeView === 'builds' && (
