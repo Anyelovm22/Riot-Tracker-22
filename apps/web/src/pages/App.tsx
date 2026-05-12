@@ -48,8 +48,8 @@ const navItems: { key: ViewKey; label: string }[] = [
   { key: 'guides', label: 'Guides' }
 ];
 
-const rankedMatchFetchCount = 40;
-const insightMatchFetchCount = 80;
+const rankedMatchFetchCount = 70;
+const insightMatchFetchCount = 140;
 
 const rankedQueueOptions: { key: RankedQueueKey; label: string; shortLabel: string }[] = [
   { key: 'solo', label: 'Solo/Duo', shortLabel: 'SoloQ' },
@@ -710,6 +710,10 @@ const TierPanel = ({
               </div>
             )}
             <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+              {(() => {
+                const actions = championActionPlan(expandedRow, expandedChampion.name, roleAverages ? { winRate: roleAverages.winRate, confidence: roleAverages.confidence } : undefined);
+                return (
+                  <>
               <div className="rounded-lg border border-zinc-800 bg-black/20 p-4">
                 <p className="text-xs uppercase tracking-wide text-zinc-500">Pros (tu data)</p>
                 <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-200">
@@ -737,17 +741,13 @@ const TierPanel = ({
                   <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-3">
                     <p className="text-xs uppercase tracking-wide text-emerald-200">Hacer</p>
                     <ul className="mt-2 space-y-1 text-sm text-zinc-200">
-                      <li>• Forzar este pick cuando tu confianza esté &gt; {formatDecimal(Math.max(55, roleAverages?.confidence ?? 55))}%.</li>
-                      <li>• Priorizar draft donde tengas línea estable y setup de objetivos.</li>
-                      <li>• Repetir core items para mantener consistencia de ejecución.</li>
+                      {actions.doItems.map((item) => <li key={item}>• {item}</li>)}
                     </ul>
                   </div>
                   <div className="rounded-md border border-rose-500/20 bg-rose-500/5 p-3">
                     <p className="text-xs uppercase tracking-wide text-rose-200">Evitar</p>
                     <ul className="mt-2 space-y-1 text-sm text-zinc-200">
-                      <li>• No spamear si tu WR cae por debajo de {formatDecimal(Math.max(49, (roleAverages?.winRate ?? 49) - 1))}%.</li>
-                      <li>• Evitar picks de comfort sin prioridad de visión/tempo.</li>
-                      <li>• No forzar si vienes de racha de tilt o macro inestable.</li>
+                      {actions.avoidItems.map((item) => <li key={item}>• {item}</li>)}
                     </ul>
                   </div>
                 </div>
@@ -756,6 +756,9 @@ const TierPanel = ({
                   <ItemStrip itemIds={expandedRow.coreItemIds} version={version} itemCatalog={itemCatalog} />
                 </div>
               </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -1449,6 +1452,36 @@ const buildGuidePlans = (analytics: PlayerAnalytics, matches: MatchOverview[], c
       source: `${roleLabels[dominantRole]} - ${analytics.games} partidas`,
       steps: guideSteps(score, analytics, dominantRole, championName)
     }));
+};
+
+const championActionPlan = (
+  row: { winRate: number; confidence: number; pickRate: number; games: number; tier: string; role: ChampionRole },
+  championName: string,
+  roleAverage?: { winRate: number; confidence: number }
+) => {
+  const wrDelta = row.winRate - (roleAverage?.winRate ?? row.winRate);
+  const confidenceDelta = row.confidence - (roleAverage?.confidence ?? row.confidence);
+  const highSample = row.games >= 12;
+  const playStyle = row.pickRate >= 7 ? 'pick principal' : row.pickRate >= 4 ? 'pick situacional' : 'pick de counter';
+
+  const doItems = [
+    `Juega ${championName} como ${playStyle} cuando tengas plan de línea para ${roleLabels[row.role]}.`,
+    wrDelta >= 0
+      ? `Repite tu plan actual: estás ${formatDecimal(Math.abs(wrDelta))}% por encima de tu media del rol.`
+      : `Ajusta primeros 10 min: estás ${formatDecimal(Math.abs(wrDelta))}% por debajo de la media del rol.`,
+    confidenceDelta >= 0
+      ? `Puedes blindearlo con más seguridad (${formatDecimal(row.confidence)}% de confianza).`
+      : `Prioriza matchup favorable hasta subir confianza (actual ${formatDecimal(row.confidence)}%).`,
+    highSample ? `Muestra sólida (${row.games} games): usa este patrón para escalar LP.` : `Muestra corta (${row.games} games): valida el plan en más rankeds antes de spamear.`
+  ];
+
+  const avoidItems = [
+    row.tier === 'B' || row.tier === 'C' ? `No forzar ${championName} en first pick cuando el draft rival tenga engage fuerte.` : `No overforce peleas sin visión solo por ir arriba en KDA.`,
+    row.winRate < 50 ? `Evita series largas con ${championName} hasta recuperar WR > 50%.` : `Evita cambiar build core cada partida; conserva consistencia.`,
+    row.confidence < 55 ? 'No pelear objetivos sin prioridad de líneas o timers de summoners.' : 'No regalar shutdowns: juega setup de visión antes de flankear.'
+  ];
+
+  return { doItems, avoidItems };
 };
 
 const averageValues = (values: number[]) => {
