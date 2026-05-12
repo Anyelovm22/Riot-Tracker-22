@@ -1,3 +1,5 @@
+import { useMemo, useState } from 'react';
+import clsx from 'clsx';
 import { Card } from '../../components/Card';
 import { ChampionCatalogMap, championIconUrl, itemIconUrl } from '../../services/dataDragon';
 import { MatchOverview } from '../../types/api';
@@ -20,7 +22,39 @@ export const MatchHistoryTable = ({
   dataDragonVersion?: string;
   championCatalog?: ChampionCatalogMap;
   title?: string;
-}) => (
+}) => {
+  const [selectedMatchId, setSelectedMatchId] = useState<string>('');
+  const selectedMatch = useMemo(() => matches.find((match) => match.matchId === selectedMatchId) ?? null, [matches, selectedMatchId]);
+  const averages = useMemo(() => {
+    if (matches.length === 0) return null;
+    return {
+      cs: matches.reduce((sum, row) => sum + row.csPerMinute, 0) / matches.length,
+      vision: matches.reduce((sum, row) => sum + row.visionScore, 0) / matches.length,
+      kp: matches.reduce((sum, row) => sum + row.killParticipation, 0) / matches.length,
+      dpm: matches.reduce((sum, row) => sum + row.damagePerMinute, 0) / matches.length,
+      gpm: matches.reduce((sum, row) => sum + row.goldPerMinute, 0) / matches.length
+    };
+  }, [matches]);
+
+  const renderComparison = (label: string, value: number, avg: number, suffix = '', max = 100) => {
+    const safeAvg = avg <= 0 ? 1 : avg;
+    const ratio = Math.max(0, Math.min(180, (value / safeAvg) * 100));
+    const tone = value >= avg ? 'bg-emerald-400' : 'bg-rose-400';
+    return (
+      <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
+        <div className="mb-2 flex items-center justify-between text-xs text-zinc-400">
+          <span>{label}</span>
+          <span>{value.toFixed(1)}{suffix} vs {avg.toFixed(1)}{suffix}</span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
+          <div className={clsx('h-full rounded-full', tone)} style={{ width: `${Math.min(max, ratio)}%` }} />
+        </div>
+      </div>
+    );
+  };
+
+  return (
+  <>
   <Card title={title}>
     <div className="overflow-x-auto">
       <table className="min-w-full text-left text-sm">
@@ -41,7 +75,7 @@ export const MatchHistoryTable = ({
           {matches.map((match) => {
             const champion = championCatalog?.[match.championId];
             return (
-              <tr key={match.matchId} className="border-b border-zinc-900 text-zinc-200">
+              <tr key={match.matchId} className="cursor-pointer border-b border-zinc-900 text-zinc-200 transition hover:bg-zinc-900/40" onClick={() => setSelectedMatchId(match.matchId)}>
                 <td className="py-2">
                   <div className="font-semibold">{match.matchId.slice(-8)}</div>
                   <div className="text-xs text-zinc-500">{formatDuration(match.gameDurationSeconds)}</div>
@@ -84,4 +118,32 @@ export const MatchHistoryTable = ({
       </table>
     </div>
   </Card>
+  {selectedMatch && averages && (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4">
+      <div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-cyan-500/35 bg-[#070d21] p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-cyan-300">Desglose profesional de partida</p>
+            <p className="text-xs text-zinc-400">Match {selectedMatch.matchId.slice(-8)} · {shortQueue(selectedMatch.queueId)} · {formatDuration(selectedMatch.gameDurationSeconds)}</p>
+          </div>
+          <button type="button" onClick={() => setSelectedMatchId('')} className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200 hover:border-zinc-500">Cerrar</button>
+        </div>
+        <div className="grid gap-4 md:grid-cols-4">
+          <div className="rounded-md border border-zinc-800 bg-black/20 p-3"><p className="text-xs text-zinc-500">KDA</p><p className="text-2xl font-bold text-white">{selectedMatch.kills}/{selectedMatch.deaths}/{selectedMatch.assists}</p></div>
+          <div className="rounded-md border border-zinc-800 bg-black/20 p-3"><p className="text-xs text-zinc-500">Resultado</p><p className={clsx('text-2xl font-bold', selectedMatch.win ? 'text-emerald-300' : 'text-rose-300')}>{selectedMatch.win ? 'Victoria' : 'Derrota'}</p></div>
+          <div className="rounded-md border border-zinc-800 bg-black/20 p-3"><p className="text-xs text-zinc-500">Objetivos</p><p className="text-2xl font-bold text-white">{selectedMatch.objectiveTakedowns}</p></div>
+          <div className="rounded-md border border-zinc-800 bg-black/20 p-3"><p className="text-xs text-zinc-500">Tiempo muerto</p><p className="text-2xl font-bold text-white">{Math.round(selectedMatch.totalTimeSpentDead / 60)}m</p></div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {renderComparison('CS/min', selectedMatch.csPerMinute, averages.cs)}
+          {renderComparison('Vision Score', selectedMatch.visionScore, averages.vision, '', 160)}
+          {renderComparison('Kill Participation', selectedMatch.killParticipation, averages.kp, '%')}
+          {renderComparison('Damage/min', selectedMatch.damagePerMinute, averages.dpm, '', 160)}
+          {renderComparison('Gold/min', selectedMatch.goldPerMinute, averages.gpm, '', 160)}
+        </div>
+      </div>
+    </div>
+  )}
+  </>
 );
+};
