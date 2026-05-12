@@ -16,3 +16,4 @@ riotRoutes.get('/match/:region/:matchId', validateRegion, asyncHandler(riotContr
 riotRoutes.get('/live/:region/:puuid', validateRegion, asyncHandler(riotController.live));
 riotRoutes.get('/mastery/:region/:puuid', validateRegion, asyncHandler(riotController.mastery));
 riotRoutes.get('/summary/:region/:gameName/:tagLine', validateRegion, asyncHandler(riotController.summary));
+riotRoutes.post('/coach-recommendations', asyncHandler(riotController.coachRecommendations));

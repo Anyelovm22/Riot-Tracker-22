@@ -28,6 +28,12 @@ const envSchema = z.object({
   REDIS_URL: z.string().url().default('redis://localhost:6379'),
   REQUEST_TIMEOUT_MS: z.coerce.number().default(10000),
   CACHE_DEFAULT_TTL_SECONDS: z.coerce.number().default(120),
+  AI_PROVIDER: z.enum(['auto', 'rules', 'openai', 'gemini']).default('auto'),
+  AI_REQUEST_TIMEOUT_MS: z.coerce.number().default(18000),
+  OPENAI_API_KEY: z.string().optional(),
+  OPENAI_MODEL: z.string().default('gpt-5.4-mini'),
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
   LOG_LEVEL: z.string().default('info')
 });
 

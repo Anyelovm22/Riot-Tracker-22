@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { aiRecommendationService } from '../services/aiRecommendationService.js';
 import { riotService } from '../services/riotService.js';
 import { ChampionRole, EliteLeagueTier, PlatformRegion, RankedQueueKey } from '../types/riot.js';
 import { AppError } from '../utils/errors.js';
@@ -123,9 +124,9 @@ export const riotController = {
       queue,
       role: parseChampionRole(req.query.role),
       sourceTier: parseEliteLeagueTier(req.query.sourceTier),
-      playerLimit: parseCount(req.query.playerLimit, 12),
-      matchesPerPlayer: parseCount(req.query.matchesPerPlayer, 6),
-      championMatchLimit: parseCount(req.query.championMatchLimit, 32)
+      playerLimit: parseCount(req.query.playerLimit, 8),
+      matchesPerPlayer: parseCount(req.query.matchesPerPlayer, 4),
+      championMatchLimit: parseCount(req.query.championMatchLimit, 18)
     });
     res.json(builds);
   },
@@ -138,9 +139,9 @@ export const riotController = {
       role: parseChampionRole(req.query.role),
       sourceTier: parseEliteLeagueTier(req.query.sourceTier),
       regions: parseBuildRegions(req.query.regions),
-      playerLimit: parseCount(req.query.playerLimit, 5),
-      matchesPerPlayer: parseCount(req.query.matchesPerPlayer, 4),
-      championMatchLimit: parseCount(req.query.championMatchLimit, 14)
+      playerLimit: parseCount(req.query.playerLimit, 4),
+      matchesPerPlayer: parseCount(req.query.matchesPerPlayer, 3),
+      championMatchLimit: parseCount(req.query.championMatchLimit, 12)
     });
     res.json(builds);
   },
@@ -169,5 +170,10 @@ export const riotController = {
     const { region, gameName, tagLine } = req.params;
     const summary = await riotService.getPlayerSummary(parseRegion(region), cleanRiotIdPart(gameName), cleanRiotIdPart(tagLine));
     res.json(summary);
+  },
+
+  async coachRecommendations(req: Request, res: Response) {
+    const recommendations = await aiRecommendationService.getCoachRecommendations(req.body);
+    res.json(recommendations);
   }
 };

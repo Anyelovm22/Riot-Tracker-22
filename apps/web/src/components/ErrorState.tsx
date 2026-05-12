@@ -1,7 +1,10 @@
 const getFriendlyTitle = (message: string) => {
+  const normalizedMessage = message.toLowerCase();
+
   if (message.includes('RIOT_API_KEY')) return 'La key de Riot necesita atencion.';
-  if (message.toLowerCase().includes('limitando') || message.toLowerCase().includes('rate limit')) return 'Riot esta limitando las consultas.';
-  if (message.toLowerCase().includes('no se pudo conectar')) return 'La API local no responde.';
+  if (normalizedMessage.includes('tardo demasiado') || normalizedMessage.includes('timeout')) return 'La busqueda se demoro demasiado.';
+  if (normalizedMessage.includes('limitando') || normalizedMessage.includes('rate limit')) return 'Riot esta limitando las consultas.';
+  if (normalizedMessage.includes('api local') || normalizedMessage.includes('no se pudo conectar')) return 'La API local no responde.';
   return 'No se pudo cargar la informacion.';
 };
 

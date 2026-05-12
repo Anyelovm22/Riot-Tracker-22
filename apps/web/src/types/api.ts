@@ -275,3 +275,113 @@ export interface ChampionBuildsResponse {
   topPlayers: ChampionElitePlayerBuild[];
   recentMatches: ChampionRecentBuildMatch[];
 }
+
+export interface AiGuideSeed {
+  id: string;
+  title: string;
+  focus: string;
+  priority: string;
+  minutes: number;
+  source: string;
+  steps: string[];
+}
+
+export interface AiChallengeSeed {
+  id: string;
+  skill: string;
+  title: string;
+  target: string;
+  progress: number;
+  total: number;
+  met: boolean;
+}
+
+export interface AiCoachRequest {
+  player: {
+    gameName: string;
+    tagLine: string;
+    region: string;
+    queue: string;
+    rankedLabel: string;
+    leaguePoints?: number;
+  };
+  dominantRole: ChampionRole;
+  analytics: {
+    games: number;
+    wins: number;
+    losses: number;
+    winRate: number;
+    avgKda: number;
+    avgCs: number;
+    avgVision: number;
+    avgDeaths: number;
+    avgGold: number;
+    avgDamage: number;
+    avgKillParticipation: number;
+    avgObjectives: number;
+  };
+  gpi: Array<{
+    key: string;
+    label: string;
+    value: number;
+    detail: string;
+  }>;
+  championPool: Array<{
+    championName: string;
+    role: ChampionRole;
+    games: number;
+    wins: number;
+    losses: number;
+    winRate: number;
+    avgKda: number;
+    avgCs: number;
+    avgVision: number;
+    avgDeaths: number;
+    lastPlayedAt: number;
+  }>;
+  recentMatches: Array<{
+    championName: string;
+    role: ChampionRole;
+    result: 'Win' | 'Loss';
+    kda: string;
+    csPerMinute: number;
+    visionScore: number;
+    killParticipation: number;
+    objectiveTakedowns: number;
+    gameCreation: number;
+  }>;
+  baselineGuides: AiGuideSeed[];
+  baselineChallenges: AiChallengeSeed[];
+}
+
+export interface AiCoachGuide {
+  id: string;
+  title: string;
+  focus: string;
+  priority: string;
+  minutes: number;
+  source: string;
+  why?: string;
+  steps: string[];
+}
+
+export interface AiCoachChallenge {
+  id: string;
+  skill: string;
+  title: string;
+  target: string;
+  progressLabel?: string;
+  why?: string;
+  checkpoints: string[];
+}
+
+export interface AiCoachRecommendationsResponse {
+  source: 'openai' | 'gemini' | 'rules';
+  model: string;
+  generatedAt: string;
+  notice?: string;
+  summary: string;
+  rolePlan: string[];
+  guides: AiCoachGuide[];
+  challenges: AiCoachChallenge[];
+}

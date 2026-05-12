@@ -56,6 +56,20 @@ const regionOptions = [
   { value: 'ru', label: 'RU' }
 ];
 
+const fastGlobalRegions = ['kr', 'euw1', 'na1', 'br1', 'la1', 'la2'];
+const buildRequestProfiles = {
+  global: {
+    playerLimit: 4,
+    matchesPerPlayer: 3,
+    championMatchLimit: 12
+  },
+  regional: {
+    playerLimit: 8,
+    matchesPerPlayer: 4,
+    championMatchLimit: 18
+  }
+};
+
 const roleOptions: Array<{ value: ChampionRole | 'ALL'; label: string }> = [
   { value: 'ALL', label: 'Todos' },
   { value: 'TOP', label: 'Top' },
@@ -104,6 +118,7 @@ const formatDecimal = (value: number, digits = 1) => value.toFixed(digits);
 const formatCompact = (value: number) => new Intl.NumberFormat('es', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
 
 const regionLabel = (region: string) => regionOptions.find((option) => option.value === region)?.label ?? region.toUpperCase();
+type UiTone = 'teal' | 'emerald' | 'amber' | 'rose' | 'zinc';
 
 const Panel = ({ children, className }: { children: ReactNode; className?: string }) => (
   <section className={clsx('rounded-lg border border-zinc-800/90 bg-zinc-950/80 p-4 shadow-xl shadow-black/20', className)}>{children}</section>
@@ -136,7 +151,7 @@ const Select = ({
   </label>
 );
 
-const Metric = ({ label, value, tone = 'zinc' }: { label: string; value: string; tone?: 'teal' | 'emerald' | 'amber' | 'rose' | 'zinc' }) => (
+const Metric = ({ label, value, tone = 'zinc' }: { label: string; value: string; tone?: UiTone }) => (
   <div className="rounded-md border border-white/10 bg-black/35 p-3">
     <p className="text-xs uppercase tracking-wide text-zinc-400">{label}</p>
     <p
@@ -153,6 +168,80 @@ const Metric = ({ label, value, tone = 'zinc' }: { label: string; value: string;
     </p>
   </div>
 );
+
+const StatusPill = ({ label, value, tone = 'zinc' }: { label: string; value: string; tone?: UiTone }) => (
+  <div
+    className={clsx(
+      'rounded-md border px-3 py-2',
+      tone === 'teal' && 'border-teal-500/30 bg-teal-500/10 text-teal-100',
+      tone === 'emerald' && 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100',
+      tone === 'amber' && 'border-amber-500/30 bg-amber-500/10 text-amber-100',
+      tone === 'rose' && 'border-rose-500/30 bg-rose-500/10 text-rose-100',
+      tone === 'zinc' && 'border-zinc-800 bg-black/25 text-zinc-200'
+    )}
+  >
+    <p className="text-[10px] font-semibold uppercase tracking-wide opacity-70">{label}</p>
+    <p className="mt-0.5 text-sm font-semibold">{value}</p>
+  </div>
+);
+
+const BuildLoadingState = ({
+  championName,
+  region,
+  queue,
+  sourceTier,
+  playerLimit,
+  matchesPerPlayer,
+  championMatchLimit
+}: {
+  championName: string;
+  region: string;
+  queue: RankedQueueKey;
+  sourceTier: EliteLeagueTier;
+  playerLimit: number;
+  matchesPerPlayer: number;
+  championMatchLimit: number;
+}) => {
+  const queueLabel = queueOptions.find((option) => option.value === queue)?.label ?? queue;
+  const sourceLabel = sourceTierOptions.find((option) => option.value === sourceTier)?.label ?? sourceTier;
+
+  return (
+    <Panel className="overflow-hidden">
+      <div className="grid gap-5 lg:grid-cols-[0.78fr_1.22fr]">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-teal-200">Buscando builds reales</p>
+          <h3 className="mt-2 text-2xl font-bold text-white">{championName}</h3>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">
+            Escaneando jugadores elite, partidas clasificatorias y timelines de items. La primera busqueda tarda mas; luego queda en cache.
+          </p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <StatusPill label="Alcance" value={region === 'global' ? `${fastGlobalRegions.length} regiones clave` : regionLabel(region)} tone="teal" />
+            <StatusPill label="Fuente" value={`${sourceLabel} / ${queueLabel}`} tone="amber" />
+            <StatusPill label="Jugadores" value={`${playerLimit} x ${matchesPerPlayer} partidas`} />
+            <StatusPill label="Objetivo" value={`hasta ${championMatchLimit} matches`} tone="emerald" />
+          </div>
+        </div>
+
+        <div className="grid content-center gap-3">
+          {['Resolviendo liga elite', 'Leyendo historial reciente', 'Filtrando partidas del campeon', 'Agrupando items, runas y spells'].map((step, index) => (
+            <div key={step} className="rounded-md border border-zinc-800 bg-black/25 p-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <span className="text-sm font-semibold text-zinc-200">{step}</span>
+                <span className="text-xs text-zinc-500">0{index + 1}</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
+                <div
+                  className="h-full animate-pulse rounded-full bg-teal-300"
+                  style={{ width: `${Math.max(28, 92 - index * 15)}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Panel>
+  );
+};
 
 const StatBar = ({ label, value, caption, tone = 'teal' }: { label: string; value: number; caption: string; tone?: 'teal' | 'emerald' | 'amber' | 'rose' }) => (
   <div className="rounded-md border border-zinc-800 bg-black/25 p-3">
@@ -450,6 +539,8 @@ export const ChampionBuildLab = ({ version, championCatalog, itemCatalog }: Cham
   const championSelectOptions = useMemo(() => [{ value: '', label: 'Selecciona campeon' }, ...championOptions], [championOptions]);
 
   const selectedChampion = championId ? championCatalog?.[Number(championId)] : undefined;
+  const requestProfile = region === 'global' ? buildRequestProfiles.global : buildRequestProfiles.regional;
+  const requestRegions = region === 'global' ? fastGlobalRegions : [region];
 
   const spellCatalogQuery = useQuery({
     queryKey: ['ddragon-spells', version],
@@ -473,33 +564,40 @@ export const ChampionBuildLab = ({ version, championCatalog, itemCatalog }: Cham
   });
 
   const buildsQuery = useQuery({
-    queryKey: ['champion-builds-global', region, championId, queue, role, sourceTier],
+    queryKey: [
+      'champion-builds-global',
+      region,
+      championId,
+      queue,
+      role,
+      sourceTier,
+      requestProfile.playerLimit,
+      requestProfile.matchesPerPlayer,
+      requestProfile.championMatchLimit,
+      requestRegions.join(',')
+    ],
     queryFn: () => {
       const sharedOptions = {
         queue,
         role,
-        sourceTier
+        sourceTier,
+        playerLimit: requestProfile.playerLimit,
+        matchesPerPlayer: requestProfile.matchesPerPlayer,
+        championMatchLimit: requestProfile.championMatchLimit
       };
 
       if (region === 'global') {
         return riotApi.getGlobalChampionBuilds(Number(championId), {
           ...sharedOptions,
-          regions: regionOptions.filter((option) => option.value !== 'global').map((option) => option.value),
-          playerLimit: 5,
-          matchesPerPlayer: 4,
-          championMatchLimit: 14
+          regions: requestRegions
         });
       }
 
-      return riotApi.getChampionBuilds(region, Number(championId), {
-        ...sharedOptions,
-        playerLimit: 12,
-        matchesPerPlayer: 6,
-        championMatchLimit: 32
-      });
+      return riotApi.getChampionBuilds(region, Number(championId), sharedOptions);
     },
     enabled: Boolean(championId),
     staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
     retry: false
   });
 
@@ -528,6 +626,20 @@ export const ChampionBuildLab = ({ version, championCatalog, itemCatalog }: Cham
   return (
     <div className="space-y-4">
       <Panel>
+        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-teal-200">Champion Build Lab</p>
+            <h2 className="mt-1 text-2xl font-bold text-white">Builds por campeon</h2>
+            <p className="mt-1 max-w-3xl text-sm text-zinc-400">
+              Muestra rapida desde partidas elite de Riot. Usa una region concreta si necesitas respuesta mas veloz o una lectura mas localizada.
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[520px]">
+            <StatusPill label="Cobertura" value={region === 'global' ? `${requestRegions.length} regiones` : regionLabel(region)} tone="teal" />
+            <StatusPill label="Escaneo" value={`${requestProfile.playerLimit} players x ${requestProfile.matchesPerPlayer}`} />
+            <StatusPill label="Muestra" value={`max ${requestProfile.championMatchLimit} games`} tone="amber" />
+          </div>
+        </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1.4fr_0.7fr_0.7fr_0.8fr_0.8fr]">
           <Select label="Campeon" value={championId} onChange={setChampionId} options={championSelectOptions} />
           <Select label="Alcance" value={region} onChange={setRegion} options={regionOptions} />
@@ -587,20 +699,31 @@ export const ChampionBuildLab = ({ version, championCatalog, itemCatalog }: Cham
         </section>
       )}
 
-      {buildsQuery.isFetching && (
-        <div className="grid gap-4 lg:grid-cols-[0.75fr_1.25fr]">
-          <Skeleton className="h-96" />
-          <Skeleton className="h-96" />
+      {selectedChampion && buildsQuery.isFetching && !data && (
+        <BuildLoadingState
+          championName={selectedChampion.name}
+          region={region}
+          queue={queue}
+          sourceTier={sourceTier}
+          playerLimit={requestProfile.playerLimit}
+          matchesPerPlayer={requestProfile.matchesPerPlayer}
+          championMatchLimit={requestProfile.championMatchLimit}
+        />
+      )}
+
+      {selectedChampion && buildsQuery.isFetching && data && (
+        <div className="rounded-lg border border-teal-500/30 bg-teal-500/10 px-4 py-3 text-sm text-teal-100">
+          Actualizando la muestra de {selectedChampion.name} con los filtros activos.
         </div>
       )}
 
-      {buildsQuery.error && <ErrorState message={(buildsQuery.error as Error).message} />}
+      {buildsQuery.error && !buildsQuery.isFetching && <ErrorState message={(buildsQuery.error as Error).message} />}
 
       {data && data.summary.games === 0 && !buildsQuery.isFetching && (
         <EmptyState title="Sin muestra para este campeon" description="Cambia region, rol o fuente elite para buscar partidas recientes desde Riot API." />
       )}
 
-      {data && data.summary.games > 0 && !buildsQuery.isFetching && (
+      {data && data.summary.games > 0 && (
         <div className="space-y-4">
           <div className="grid gap-4 lg:grid-cols-3">
             <Panel>

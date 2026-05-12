@@ -47,7 +47,7 @@ const eliteLeagueEndpoints: Record<EliteLeagueTier, string> = {
   master: 'masterleagues'
 };
 
-const globalBuildRegions: PlatformRegion[] = ['kr', 'euw1', 'na1', 'br1', 'la1', 'la2', 'eun1', 'jp1', 'oc1', 'tr1', 'ru'];
+const globalBuildRegions: PlatformRegion[] = ['kr', 'euw1', 'na1', 'br1', 'la1', 'la2'];
 
 const matchPageSize = 100;
 const matchDetailConcurrency = 4;
@@ -565,7 +565,7 @@ const normalizeCount = (count: number, fallback = 20) => {
 };
 
 const shouldStopBatchForRiotError = (error: unknown) =>
-  error instanceof AppError && ['RIOT_AUTH_ERROR', 'RIOT_RATE_LIMIT', 'RIOT_UNAVAILABLE'].includes(error.code);
+  error instanceof AppError && ['RIOT_AUTH_ERROR', 'RIOT_RATE_LIMIT', 'RIOT_UNAVAILABLE', 'RIOT_TEMPORARY_ERROR'].includes(error.code);
 
 const flexFallbackScanCount = 220;
 
@@ -918,9 +918,9 @@ export class RiotService {
     const queue = options.queue ?? 'solo';
     const role = options.role ?? 'ALL';
     const sourceTier = options.sourceTier ?? 'challenger';
-    const playerLimit = Math.min(30, normalizeCount(options.playerLimit ?? 12, 12));
-    const matchesPerPlayer = Math.min(12, normalizeCount(options.matchesPerPlayer ?? 6, 6));
-    const championMatchLimit = Math.min(80, normalizeCount(options.championMatchLimit ?? 32, 32));
+    const playerLimit = Math.min(30, normalizeCount(options.playerLimit ?? 8, 8));
+    const matchesPerPlayer = Math.min(12, normalizeCount(options.matchesPerPlayer ?? 4, 4));
+    const championMatchLimit = Math.min(80, normalizeCount(options.championMatchLimit ?? 18, 18));
     const key = cacheKey(
       'champion-builds',
       region,
@@ -1128,9 +1128,9 @@ export class RiotService {
     const role = options.role ?? 'ALL';
     const sourceTier = options.sourceTier ?? 'challenger';
     const regions = options.regions?.length ? [...new Set(options.regions)] : globalBuildRegions;
-    const playerLimit = Math.min(12, normalizeCount(options.playerLimit ?? 5, 5));
-    const matchesPerPlayer = Math.min(8, normalizeCount(options.matchesPerPlayer ?? 4, 4));
-    const championMatchLimit = Math.min(40, normalizeCount(options.championMatchLimit ?? 14, 14));
+    const playerLimit = Math.min(12, normalizeCount(options.playerLimit ?? 4, 4));
+    const matchesPerPlayer = Math.min(8, normalizeCount(options.matchesPerPlayer ?? 3, 3));
+    const championMatchLimit = Math.min(40, normalizeCount(options.championMatchLimit ?? 12, 12));
     const regionCount = Math.max(1, regions.length);
     const perRegionPlayerLimit = Math.max(2, Math.min(playerLimit, Math.ceil(playerLimit / Math.min(regionCount, 3))));
     const perRegionChampionMatchLimit = Math.max(2, Math.ceil(championMatchLimit / regionCount));

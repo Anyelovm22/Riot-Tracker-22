@@ -1,5 +1,15 @@
 import { apiClient } from './apiClient';
-import { ChampionBuildsResponse, ChampionInsightsResponse, ChampionRole, EliteLeagueTier, MatchOverview, PlayerSummary, RankedQueueKey } from '../types/api';
+import {
+  AiCoachRecommendationsResponse,
+  AiCoachRequest,
+  ChampionBuildsResponse,
+  ChampionInsightsResponse,
+  ChampionRole,
+  EliteLeagueTier,
+  MatchOverview,
+  PlayerSummary,
+  RankedQueueKey
+} from '../types/api';
 
 export const riotApi = {
   async getSummary(region: string, gameName: string, tagLine: string) {
@@ -73,5 +83,10 @@ export const riotApi = {
   async getLive(region: string, puuid: string) {
     const { data } = await apiClient.get(`/riot/live/${region}/${puuid}`);
     return data as Record<string, unknown> | null;
+  },
+
+  async getCoachRecommendations(payload: AiCoachRequest) {
+    const { data } = await apiClient.post<AiCoachRecommendationsResponse>('/riot/coach-recommendations', payload);
+    return data;
   }
 };

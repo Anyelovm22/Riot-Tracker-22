@@ -85,6 +85,21 @@ Si al levantar la API ves un error de Zod indicando que falta `RIOT_API_KEY`, re
 2. tengas una key válida de Riot en `RIOT_API_KEY`,
 3. opcionalmente, puedes usar `RIOT_API_TOKEN` como alias (internamente se normaliza a `RIOT_API_KEY`).
 
+### Coaching IA opcional
+
+Las guias y challenges usan un fallback local, pero puedes activar IA desde el backend sin exponer keys al navegador:
+
+```bash
+AI_PROVIDER=auto
+OPENAI_API_KEY=tu-openai-key
+OPENAI_MODEL=gpt-5.4-mini
+# o
+GEMINI_API_KEY=tu-gemini-key
+GEMINI_MODEL=gemini-2.5-flash
+```
+
+`AI_PROVIDER=auto` prioriza OpenAI si existe `OPENAI_API_KEY`; si no, usa Gemini cuando exista `GEMINI_API_KEY`. Para forzar un proveedor usa `AI_PROVIDER=openai` o `AI_PROVIDER=gemini`.
+
 ---
 
 ## Arquitectura
@@ -119,6 +134,7 @@ Base: `/api/riot`
 - `GET /live/:region/:puuid`
 - `GET /mastery/:region/:puuid?count=8`
 - `GET /summary/:region/:gameName/:tagLine`
+- `POST /coach-recommendations`
 
 ### Errores manejados profesionalmente
 

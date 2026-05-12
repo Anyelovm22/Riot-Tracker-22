@@ -9,6 +9,7 @@ import { Skeleton } from '../components/Skeleton';
 import { ChampionBuildLab } from '../features/builds/ChampionBuildLab';
 import { MatchHistoryTable } from '../features/match/MatchHistoryTable';
 import { ChampionMasteryList } from '../features/player/ChampionMasteryList';
+import { LpFlowChart } from '../features/player/LpFlowChart';
 import { ProfileHeader } from '../features/player/ProfileHeader';
 import { RankedTable } from '../features/player/RankedTable';
 import { SearchBar } from '../features/player/SearchBar';
@@ -26,7 +27,7 @@ import {
   summonerSpellIconUrl
 } from '../services/dataDragon';
 import { riotApi } from '../services/riotApi';
-import type { ChampionBuildStats, ChampionInsightsResponse, ChampionRole, MatchOverview, RankedQueueKey } from '../types/api';
+import type { AiCoachRecommendationsResponse, AiCoachRequest, ChampionBuildStats, ChampionInsightsResponse, ChampionRole, MatchOverview, PlayerSummary, RankedEntry, RankedQueueKey } from '../types/api';
 import { Challenge, PlayerAnalytics, SkillScore, buildAnalytics } from '../utils/playerAnalytics';
 
 interface SearchState {
@@ -54,6 +55,11 @@ const rankedQueueOptions: { key: RankedQueueKey; label: string; shortLabel: stri
   { key: 'solo', label: 'Solo/Duo', shortLabel: 'SoloQ' },
   { key: 'flex', label: 'Flex 5v5', shortLabel: 'Flex' }
 ];
+
+const rankedQueueTypes: Record<RankedQueueKey, string> = {
+  solo: 'RANKED_SOLO_5x5',
+  flex: 'RANKED_FLEX_SR'
+};
 
 const roleLabels: Record<ChampionRole, string> = {
   TOP: 'Top',
@@ -163,7 +169,7 @@ const ProgressBar = ({ value, tone = 'teal' }: { value: number; tone?: 'teal' | 
 );
 
 const Panel = ({ children, className }: { children: ReactNode; className?: string }) => (
-  <section className={clsx('rounded-lg border border-zinc-800/90 bg-zinc-950/80 p-4 shadow-xl shadow-black/20', className)}>{children}</section>
+  <section className={clsx('rounded-lg border border-zinc-800/90 bg-zinc-950/80 p-4 shadow-xl shadow-black/20 backdrop-blur', className)}>{children}</section>
 );
 
 const SectionHeading = ({ title, caption, action }: { title: string; caption?: string; action?: ReactNode }) => (
@@ -605,52 +611,142 @@ const TierPanel = ({
   );
 };
 
-const ChallengePanel = ({ analytics, selectedId, onSelect }: { analytics: PlayerAnalytics; selectedId: string; onSelect: (id: string) => void }) => {
+const aiSourceLabel = (recommendations?: AiCoachRecommendationsResponse) => {
+  if (!recommendations) return 'Coach IA';
+  if (recommendations.source === 'openai') return `OpenAI - ${recommendations.model}`;
+  if (recommendations.source === 'gemini') return `Gemini - ${recommendations.model}`;
+  return 'Reglas locales';
+};
+
+const CoachInsightPanel = ({
+  recommendations,
+  isLoading,
+  error,
+  dominantRole
+}: {
+  recommendations?: AiCoachRecommendationsResponse;
+  isLoading: boolean;
+  error?: string;
+  dominantRole: ChampionRole;
+}) => (
+  <Panel className="border-sky-500/25 bg-sky-950/10">
+    <SectionHeading
+      title="Coach IA"
+      caption={`${aiSourceLabel(recommendations)} - rol foco: ${roleLabels[dominantRole]}`}
+      action={
+        <span className={clsx('rounded-md px-2 py-1 text-xs font-bold', recommendations?.source === 'rules' ? 'bg-amber-500/10 text-amber-200' : 'bg-sky-500/10 text-sky-200')}>
+          {isLoading ? 'Generando' : recommendations?.source === 'rules' ? 'Fallback' : 'Personalizado'}
+        </span>
+      }
+    />
+    {isLoading && <p className="text-sm text-sky-100">Leyendo metricas, rol dominante y partidas recientes para ajustar recomendaciones.</p>}
+    {!isLoading && error && <p className="text-sm text-amber-200">{error}</p>}
+    {!isLoading && recommendations && (
+      <div className="space-y-3">
+        <p className="text-sm leading-6 text-zinc-200">{recommendations.summary}</p>
+        <div className="grid gap-2 md:grid-cols-3">
+          {recommendations.rolePlan.slice(0, 3).map((item) => (
+            <div key={item} className="rounded-md border border-sky-500/15 bg-black/25 px-3 py-2 text-sm text-zinc-300">
+              {item}
+            </div>
+          ))}
+        </div>
+        {recommendations.notice && <p className="text-xs text-zinc-500">{recommendations.notice}</p>}
+      </div>
+    )}
+  </Panel>
+);
+
+type RenderGuide = GuidePlan | AiCoachRecommendationsResponse['guides'][number];
+
+const getGuideWhy = (guide: RenderGuide) => ('why' in guide && typeof guide.why === 'string' ? guide.why : '');
+
+const ChallengePanel = ({
+  analytics,
+  selectedId,
+  onSelect,
+  recommendations,
+  isAiLoading,
+  aiError,
+  dominantRole
+}: {
+  analytics: PlayerAnalytics;
+  selectedId: string;
+  onSelect: (id: string) => void;
+  recommendations?: AiCoachRecommendationsResponse;
+  isAiLoading: boolean;
+  aiError?: string;
+  dominantRole: ChampionRole;
+}) => {
   if (analytics.games === 0) {
     return <EmptyState title="Busca un jugador para generar challenges" description="Los retos se ajustan a tus últimas partidas clasificatorias." />;
   }
 
   const completed = analytics.challenges.filter((challenge) => challenge.met).length;
   const selected = analytics.challenges.find((challenge) => challenge.id === selectedId) ?? analytics.challenges[0];
+  const aiChallenges = recommendations?.challenges ?? [];
+  const selectedAiChallenge = aiChallenges.find((challenge) => challenge.id === selected.id || challenge.skill === selected.skill) ?? aiChallenges[0];
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[0.72fr_1.28fr]">
-      <Panel>
-        <SectionHeading title="Retos sugeridos" caption={`${completed}/${analytics.challenges.length} completados con la muestra actual`} />
-        <div className="space-y-2">
-          {analytics.challenges.map((challenge) => (
-            <button
-              type="button"
-              key={challenge.id}
-              onClick={() => onSelect(challenge.id)}
-              className={clsx(
-                'w-full rounded-md border px-3 py-2 text-left text-sm transition',
-                selected.id === challenge.id ? 'border-teal-300 bg-teal-300/10 text-white' : 'border-zinc-800 bg-black/20 text-zinc-300 hover:border-zinc-600'
-              )}
-            >
-              <span className="block font-semibold">{challenge.title}</span>
-              <span className="text-xs text-zinc-500">{challenge.skill}</span>
-            </button>
-          ))}
-        </div>
-      </Panel>
-      <Panel>
-        <SectionHeading title={selected.title} caption={selected.target} />
-        <div className="mb-4 rounded-lg border border-zinc-800 bg-black/20 p-4">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <span className="text-sm font-semibold text-zinc-200">{selected.skill}</span>
-            <span className={selected.met ? 'rounded-md bg-emerald-500/10 px-2 py-1 text-xs font-bold text-emerald-300' : 'rounded-md bg-amber-500/10 px-2 py-1 text-xs font-bold text-amber-300'}>
-              {selected.progress}/{selected.total}
-            </span>
+    <div className="space-y-4">
+      <CoachInsightPanel recommendations={recommendations} isLoading={isAiLoading} error={aiError} dominantRole={dominantRole} />
+      <div className="grid gap-4 lg:grid-cols-[0.72fr_1.28fr]">
+        <Panel>
+          <SectionHeading title="Retos sugeridos" caption={`${completed}/${analytics.challenges.length} completados con la muestra actual`} />
+          <div className="space-y-2">
+            {analytics.challenges.map((challenge) => (
+              <button
+                type="button"
+                key={challenge.id}
+                onClick={() => onSelect(challenge.id)}
+                className={clsx(
+                  'w-full rounded-md border px-3 py-2 text-left text-sm transition',
+                  selected.id === challenge.id ? 'border-teal-300 bg-teal-300/10 text-white' : 'border-zinc-800 bg-black/20 text-zinc-300 hover:border-zinc-600'
+                )}
+              >
+                <span className="block font-semibold">{challenge.title}</span>
+                <span className="text-xs text-zinc-500">{challenge.skill}</span>
+              </button>
+            ))}
           </div>
-          <ProgressBar value={(selected.progress / Math.max(1, selected.total)) * 100} tone={selected.met ? 'emerald' : 'amber'} />
-        </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          {analytics.challenges.map((challenge) => (
-            <ChallengeCard challenge={challenge} active={selected.id === challenge.id} key={challenge.id} />
-          ))}
-        </div>
-      </Panel>
+        </Panel>
+        <Panel>
+          <SectionHeading title={selected.title} caption={selected.target} />
+          <div className="mb-4 rounded-lg border border-zinc-800 bg-black/20 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <span className="text-sm font-semibold text-zinc-200">{selected.skill}</span>
+              <span className={selected.met ? 'rounded-md bg-emerald-500/10 px-2 py-1 text-xs font-bold text-emerald-300' : 'rounded-md bg-amber-500/10 px-2 py-1 text-xs font-bold text-amber-300'}>
+                {selected.progress}/{selected.total}
+              </span>
+            </div>
+            <ProgressBar value={(selected.progress / Math.max(1, selected.total)) * 100} tone={selected.met ? 'emerald' : 'amber'} />
+          </div>
+          {selectedAiChallenge && (
+            <div className="mb-4 rounded-lg border border-sky-500/20 bg-sky-500/10 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-sky-200">Recomendacion IA</p>
+                  <p className="mt-1 font-semibold text-white">{selectedAiChallenge.title}</p>
+                </div>
+                {selectedAiChallenge.progressLabel && <span className="rounded-md bg-black/30 px-2 py-1 text-xs font-semibold text-sky-100">{selectedAiChallenge.progressLabel}</span>}
+              </div>
+              {selectedAiChallenge.why && <p className="text-sm leading-6 text-zinc-300">{selectedAiChallenge.why}</p>}
+              <div className="mt-3 grid gap-2 md:grid-cols-3">
+                {selectedAiChallenge.checkpoints.slice(0, 3).map((checkpoint) => (
+                  <div key={checkpoint} className="rounded-md border border-sky-500/15 bg-black/25 px-3 py-2 text-sm text-zinc-300">
+                    {checkpoint}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="grid gap-3 md:grid-cols-2">
+            {analytics.challenges.map((challenge) => (
+              <ChallengeCard challenge={challenge} active={selected.id === challenge.id} key={challenge.id} />
+            ))}
+          </div>
+        </Panel>
+      </div>
     </div>
   );
 };
@@ -998,6 +1094,15 @@ const getMostPlayedChampion = (matches: MatchOverview[], championCatalog?: Champ
   return getChampion(championCatalog, championId, value.championName);
 };
 
+const getDominantRole = (matches: MatchOverview[]): ChampionRole => {
+  const roleCounts = new Map<ChampionRole, number>();
+  matches.forEach((match) => {
+    const role = normalizeRole(match.teamPosition, match.lane);
+    roleCounts.set(role, (roleCounts.get(role) ?? 0) + 1);
+  });
+  return [...roleCounts.entries()].sort(([, a], [, b]) => b - a)[0]?.[0] ?? 'UNKNOWN';
+};
+
 const guideSteps = (score: SkillScore, analytics: PlayerAnalytics, role: ChampionRole, championName: string): string[] => {
   if (score.key === 'farming') {
     return [
@@ -1051,12 +1156,7 @@ const buildGuidePlans = (analytics: PlayerAnalytics, matches: MatchOverview[], c
 
   const mostPlayedChampion = getMostPlayedChampion(matches, championCatalog);
   const championName = mostPlayedChampion?.name ?? analytics.bestMatch?.championName ?? 'tu campeón principal';
-  const roleCounts = new Map<ChampionRole, number>();
-  matches.forEach((match) => {
-    const role = normalizeRole(match.teamPosition, match.lane);
-    roleCounts.set(role, (roleCounts.get(role) ?? 0) + 1);
-  });
-  const dominantRole = [...roleCounts.entries()].sort(([, a], [, b]) => b - a)[0]?.[0] ?? 'UNKNOWN';
+  const dominantRole = getDominantRole(matches);
 
   return [...analytics.gpi]
     .sort((a, b) => a.value - b.value)
@@ -1067,26 +1167,160 @@ const buildGuidePlans = (analytics: PlayerAnalytics, matches: MatchOverview[], c
       focus: score.detail,
       priority: score.value < 45 ? 'Alta' : score.value < 62 ? 'Media' : 'Mantenimiento',
       minutes: Math.max(4, Math.round((100 - score.value) / 9)),
-      source: `${roleLabels[dominantRole]} · ${analytics.games} partidas`,
+      source: `${roleLabels[dominantRole]} - ${analytics.games} partidas`,
       steps: guideSteps(score, analytics, dominantRole, championName)
     }));
 };
 
-const GuidesPanel = ({ analytics, matches, championCatalog }: { analytics: PlayerAnalytics; matches: MatchOverview[]; championCatalog?: ChampionCatalogMap }) => {
-  const guides = buildGuidePlans(analytics, matches, championCatalog);
+const averageValues = (values: number[]) => {
+  if (values.length === 0) return 0;
+  return values.reduce((total, value) => total + value, 0) / values.length;
+};
+
+const getRankedEntryForQueue = (ranked: RankedEntry[], queue: RankedQueueKey) => ranked.find((entry) => entry.queueType === rankedQueueTypes[queue]);
+
+const rankedLabelFromEntry = (entry?: RankedEntry) => {
+  if (!entry) return 'Unranked';
+  return `${entry.tier} ${entry.rank} - ${entry.leaguePoints} LP`;
+};
+
+const buildChampionPoolSnapshot = (matches: MatchOverview[], championCatalog?: ChampionCatalogMap): AiCoachRequest['championPool'] => {
+  const groups = new Map<string, MatchOverview[]>();
+
+  matches.forEach((match) => {
+    const role = normalizeRole(match.teamPosition, match.lane);
+    const key = `${match.championId}:${role}`;
+    groups.set(key, [...(groups.get(key) ?? []), match]);
+  });
+
+  return [...groups.values()]
+    .sort((a, b) => b.length - a.length || Math.max(...b.map((match) => match.gameCreation)) - Math.max(...a.map((match) => match.gameCreation)))
+    .slice(0, 6)
+    .map((group) => {
+      const first = group[0];
+      const champion = getChampion(championCatalog, first.championId, first.championName);
+      const wins = group.filter((match) => match.win).length;
+      const losses = group.length - wins;
+
+      return {
+        championName: champion.name,
+        role: normalizeRole(first.teamPosition, first.lane),
+        games: group.length,
+        wins,
+        losses,
+        winRate: group.length ? (wins / group.length) * 100 : 0,
+        avgKda: averageValues(group.map((match) => (match.kills + match.assists) / Math.max(1, match.deaths))),
+        avgCs: averageValues(group.map((match) => match.csPerMinute)),
+        avgVision: averageValues(group.map((match) => match.visionScore)),
+        avgDeaths: averageValues(group.map((match) => match.deaths)),
+        lastPlayedAt: Math.max(...group.map((match) => match.gameCreation))
+      };
+    });
+};
+
+const buildCoachRequest = ({
+  search,
+  summary,
+  analytics,
+  matches,
+  championCatalog,
+  rankedQueue,
+  localGuides
+}: {
+  search: SearchState;
+  summary: PlayerSummary;
+  analytics: PlayerAnalytics;
+  matches: MatchOverview[];
+  championCatalog?: ChampionCatalogMap;
+  rankedQueue: RankedQueueKey;
+  localGuides: GuidePlan[];
+}): AiCoachRequest => {
+  const rankedEntry = getRankedEntryForQueue(summary.ranked, rankedQueue);
+  const queueLabel = rankedQueueOptions.find((option) => option.key === rankedQueue)?.label ?? rankedQueue;
+
+  return {
+    player: {
+      gameName: summary.profile.gameName,
+      tagLine: summary.profile.tagLine,
+      region: search.region,
+      queue: queueLabel,
+      rankedLabel: rankedLabelFromEntry(rankedEntry),
+      leaguePoints: rankedEntry?.leaguePoints
+    },
+    dominantRole: getDominantRole(matches),
+    analytics: {
+      games: analytics.games,
+      wins: analytics.wins,
+      losses: analytics.losses,
+      winRate: analytics.winRate,
+      avgKda: analytics.avgKda,
+      avgCs: analytics.avgCs,
+      avgVision: analytics.avgVision,
+      avgDeaths: analytics.avgDeaths,
+      avgGold: analytics.avgGold,
+      avgDamage: analytics.avgDamage,
+      avgKillParticipation: analytics.avgKillParticipation,
+      avgObjectives: analytics.avgObjectives
+    },
+    gpi: analytics.gpi,
+    championPool: buildChampionPoolSnapshot(matches, championCatalog),
+    recentMatches: matches.slice(0, 12).map((match) => {
+      const champion = getChampion(championCatalog, match.championId, match.championName);
+      return {
+        championName: champion.name,
+        role: normalizeRole(match.teamPosition, match.lane),
+        result: match.win ? 'Win' : 'Loss',
+        kda: `${match.kills}/${match.deaths}/${match.assists}`,
+        csPerMinute: match.csPerMinute,
+        visionScore: match.visionScore,
+        killParticipation: match.killParticipation,
+        objectiveTakedowns: match.objectiveTakedowns,
+        gameCreation: match.gameCreation
+      };
+    }),
+    baselineGuides: localGuides,
+    baselineChallenges: analytics.challenges
+  };
+};
+
+const GuidesPanel = ({
+  analytics,
+  matches,
+  championCatalog,
+  recommendations,
+  isAiLoading,
+  aiError,
+  dominantRole,
+  localGuides
+}: {
+  analytics: PlayerAnalytics;
+  matches: MatchOverview[];
+  championCatalog?: ChampionCatalogMap;
+  recommendations?: AiCoachRecommendationsResponse;
+  isAiLoading: boolean;
+  aiError?: string;
+  dominantRole: ChampionRole;
+  localGuides?: GuidePlan[];
+}) => {
+  const guides = recommendations?.guides.length ? recommendations.guides : localGuides ?? buildGuidePlans(analytics, matches, championCatalog);
 
   if (guides.length === 0) {
-    return <EmptyState title="Busca un jugador para crear guides" description="Las guías se generan desde tus métricas, rol frecuente y partidas recientes." />;
+    return <EmptyState title="Busca un jugador para crear guides" description="Las guias se generan desde tus metricas, rol frecuente y partidas recientes." />;
   }
 
   return (
     <div className="space-y-4">
+      <CoachInsightPanel recommendations={recommendations} isLoading={isAiLoading} error={aiError} dominantRole={dominantRole} />
       <Panel>
-        <SectionHeading title="Guides dinámicas" caption="Planes generados con tus puntos débiles actuales, sin cards estáticas." />
+        <SectionHeading
+          title="Guides dinamicas"
+          caption={recommendations?.source && recommendations.source !== 'rules' ? 'Planes reescritos por IA con tus datos recientes.' : 'Planes generados con tus puntos debiles actuales, rol frecuente y partidas recientes.'}
+          action={<span className="rounded-md bg-sky-500/10 px-2 py-1 text-xs font-semibold text-sky-200">{aiSourceLabel(recommendations)}</span>}
+        />
       </Panel>
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {guides.map((guide) => (
-          <article key={guide.id} className="rounded-lg border border-zinc-800 bg-zinc-950/80 p-4 shadow-xl shadow-black/20">
+          <article key={guide.id} className="rounded-lg border border-zinc-800 bg-zinc-950/80 p-4 shadow-xl shadow-black/20 transition hover:border-sky-500/40">
             <div className="mb-4 flex items-center justify-between gap-3">
               <span className="rounded-md bg-teal-500/10 px-2 py-1 text-xs font-semibold text-teal-300">{guide.priority}</span>
               <span className="text-xs text-zinc-500">{guide.minutes} min</span>
@@ -1094,6 +1328,7 @@ const GuidesPanel = ({ analytics, matches, championCatalog }: { analytics: Playe
             <h3 className="text-lg font-bold text-white">{guide.title}</h3>
             <p className="mt-2 text-sm text-zinc-400">{guide.focus}</p>
             <p className="mt-1 text-xs text-zinc-500">{guide.source}</p>
+            {getGuideWhy(guide) && <p className="mt-3 rounded-md border border-sky-500/15 bg-sky-500/10 px-3 py-2 text-sm text-sky-100">{getGuideWhy(guide)}</p>}
             <div className="mt-4 space-y-2">
               {guide.steps.map((step) => (
                 <div key={step} className="rounded-md border border-zinc-800 bg-black/20 px-3 py-2 text-sm text-zinc-200">
@@ -1186,6 +1421,33 @@ export const App = () => {
   const championCatalog = championCatalogQuery.data;
   const itemCatalog = itemCatalogQuery.data;
   const spellCatalog = spellCatalogQuery.data;
+  const localGuidePlans = useMemo(() => buildGuidePlans(analytics, matches, championCatalog), [analytics, matches, championCatalog]);
+  const dominantRole = useMemo(() => getDominantRole(matches), [matches]);
+  const coachRequest = useMemo(
+    () =>
+      search && summaryQuery.data && analytics.games > 0
+        ? buildCoachRequest({
+            search,
+            summary: summaryQuery.data,
+            analytics,
+            matches,
+            championCatalog,
+            rankedQueue,
+            localGuides: localGuidePlans
+          })
+        : undefined,
+    [analytics, championCatalog, localGuidePlans, matches, rankedQueue, search, summaryQuery.data]
+  );
+
+  const coachRecommendationsQuery = useQuery({
+    queryKey: ['coach-recommendations', summaryQuery.data?.puuid, rankedQueue, matches.slice(0, 12).map((match) => match.matchId).join('|')],
+    queryFn: () => riotApi.getCoachRecommendations(coachRequest!),
+    enabled: Boolean(coachRequest && (activeView === 'guides' || activeView === 'challenges')),
+    staleTime: 1000 * 60 * 5,
+    retry: false
+  });
+
+  const aiCoachError = (coachRecommendationsQuery.error as Error)?.message;
 
   return (
     <MainLayout>
@@ -1256,6 +1518,7 @@ export const App = () => {
         {activeView === 'profile' && summaryQuery.data && (
           <div className="space-y-5">
             <ProfileDashboard analytics={analytics} matches={matches} version={version} championCatalog={championCatalog} />
+            <LpFlowChart matches={matches} ranked={summaryQuery.data.ranked} activeQueue={rankedQueue} />
             <section className="grid gap-4 lg:grid-cols-3">
               <div className="lg:col-span-2">
                 {matches.length > 0 ? (
@@ -1299,8 +1562,29 @@ export const App = () => {
             itemCatalog={itemCatalog}
           />
         )}
-        {activeView === 'challenges' && <ChallengePanel analytics={analytics} selectedId={selectedChallenge} onSelect={setSelectedChallenge} />}
-        {activeView === 'guides' && <GuidesPanel analytics={analytics} matches={matches} championCatalog={championCatalog} />}
+        {activeView === 'challenges' && (
+          <ChallengePanel
+            analytics={analytics}
+            selectedId={selectedChallenge}
+            onSelect={setSelectedChallenge}
+            recommendations={coachRecommendationsQuery.data}
+            isAiLoading={coachRecommendationsQuery.isFetching}
+            aiError={aiCoachError}
+            dominantRole={dominantRole}
+          />
+        )}
+        {activeView === 'guides' && (
+          <GuidesPanel
+            analytics={analytics}
+            matches={matches}
+            championCatalog={championCatalog}
+            recommendations={coachRecommendationsQuery.data}
+            isAiLoading={coachRecommendationsQuery.isFetching}
+            aiError={aiCoachError}
+            dominantRole={dominantRole}
+            localGuides={localGuidePlans}
+          />
+        )}
       </div>
     </MainLayout>
   );
