@@ -733,6 +733,24 @@ const TierPanel = ({
                       ? 'Pick situacionalmente fuerte: úsalo cuando tengas matchup y plan claro.'
                       : 'No recomendado para subir LP en este momento; mejor úsalo en práctica o dodge spots malos.'}
                 </p>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-3">
+                    <p className="text-xs uppercase tracking-wide text-emerald-200">Hacer</p>
+                    <ul className="mt-2 space-y-1 text-sm text-zinc-200">
+                      <li>• Forzar este pick cuando tu confianza esté &gt; {formatDecimal(Math.max(55, roleAverages?.confidence ?? 55))}%.</li>
+                      <li>• Priorizar draft donde tengas línea estable y setup de objetivos.</li>
+                      <li>• Repetir core items para mantener consistencia de ejecución.</li>
+                    </ul>
+                  </div>
+                  <div className="rounded-md border border-rose-500/20 bg-rose-500/5 p-3">
+                    <p className="text-xs uppercase tracking-wide text-rose-200">Evitar</p>
+                    <ul className="mt-2 space-y-1 text-sm text-zinc-200">
+                      <li>• No spamear si tu WR cae por debajo de {formatDecimal(Math.max(49, (roleAverages?.winRate ?? 49) - 1))}%.</li>
+                      <li>• Evitar picks de comfort sin prioridad de visión/tempo.</li>
+                      <li>• No forzar si vienes de racha de tilt o macro inestable.</li>
+                    </ul>
+                  </div>
+                </div>
                 <div className="mt-4 rounded-md border border-zinc-800 bg-zinc-950/60 p-3">
                   <p className="mb-2 text-xs uppercase tracking-wide text-zinc-500">Core items más frecuentes</p>
                   <ItemStrip itemIds={expandedRow.coreItemIds} version={version} itemCatalog={itemCatalog} />

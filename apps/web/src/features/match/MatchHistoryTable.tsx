@@ -52,6 +52,15 @@ export const MatchHistoryTable = ({
       </div>
     );
   };
+  const getDeltaLabel = (value: number, avg: number, goodWhenHigher = true) => {
+    const delta = value - avg;
+    const abs = Math.abs(delta);
+    const status = goodWhenHigher ? (delta >= 0 ? 'positive' : 'negative') : delta <= 0 ? 'positive' : 'negative';
+    return {
+      status,
+      text: `${delta >= 0 ? '+' : '-'}${abs.toFixed(1)}`
+    };
+  };
 
   return (
   <>
@@ -120,7 +129,7 @@ export const MatchHistoryTable = ({
   </Card>
   {selectedMatch && averages && (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4">
-      <div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-cyan-500/35 bg-[#070d21] p-5">
+      <div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-cyan-500/35 bg-gradient-to-b from-[#08122d] to-[#060b1d] p-5 shadow-2xl shadow-cyan-900/20">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-cyan-300">Desglose profesional de partida</p>
@@ -140,6 +149,32 @@ export const MatchHistoryTable = ({
           {renderComparison('Kill Participation', selectedMatch.killParticipation, averages.kp, '%')}
           {renderComparison('Damage/min', selectedMatch.damagePerMinute, averages.dpm, '', 160)}
           {renderComparison('Gold/min', selectedMatch.goldPerMinute, averages.gpm, '', 160)}
+        </div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-3">
+          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
+            <p className="text-xs uppercase tracking-wide text-emerald-200">Qué hiciste bien</p>
+            <ul className="mt-2 space-y-2 text-sm text-zinc-200">
+              <li>• KP {selectedMatch.killParticipation.toFixed(1)}% ({getDeltaLabel(selectedMatch.killParticipation, averages.kp).text} vs promedio).</li>
+              <li>• DPM {selectedMatch.damagePerMinute.toFixed(0)} ({getDeltaLabel(selectedMatch.damagePerMinute, averages.dpm).text}).</li>
+              <li>• Oro/min {selectedMatch.goldPerMinute.toFixed(0)} ({getDeltaLabel(selectedMatch.goldPerMinute, averages.gpm).text}).</li>
+            </ul>
+          </div>
+          <div className="rounded-lg border border-rose-500/20 bg-rose-500/5 p-4">
+            <p className="text-xs uppercase tracking-wide text-rose-200">Riesgos detectados</p>
+            <ul className="mt-2 space-y-2 text-sm text-zinc-200">
+              <li>• Visión {selectedMatch.visionScore.toFixed(1)} ({getDeltaLabel(selectedMatch.visionScore, averages.vision).text} vs promedio).</li>
+              <li>• Muertes: {selectedMatch.deaths} ({selectedMatch.deaths >= 7 ? 'alta exposición' : 'aceptable'}).</li>
+              <li>• Objetivos: {selectedMatch.objectiveTakedowns} ({selectedMatch.objectiveTakedowns <= 1 ? 'impacto bajo en macro' : 'buena presencia'}).</li>
+            </ul>
+          </div>
+          <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 p-4">
+            <p className="text-xs uppercase tracking-wide text-sky-200">Plan para próxima partida</p>
+            <ol className="mt-2 space-y-2 text-sm text-zinc-200">
+              <li>1) Antes del min 14, coloca 1 ward de control por reset.</li>
+              <li>2) Si vas por delante, convierte ventaja en 1 objetivo neutral.</li>
+              <li>3) En peleas, entra después de CC principal para subir supervivencia.</li>
+            </ol>
+          </div>
         </div>
       </div>
     </div>
