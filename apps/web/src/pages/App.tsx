@@ -528,6 +528,15 @@ const TierPanel = ({
   const selectedChampion = selectedRow ? getChampion(championCatalog, selectedRow.championId, selectedRow.championName) : undefined;
   const expandedRow = filteredRows.find((row) => `${row.championId}-${row.role}` === expandedChampionKey);
   const expandedChampion = expandedRow ? getChampion(championCatalog, expandedRow.championId, expandedRow.championName) : undefined;
+  const rolePool = expandedRow ? filteredRows.filter((row) => row.role === expandedRow.role) : [];
+  const roleAverages = rolePool.length
+    ? {
+        winRate: rolePool.reduce((sum, row) => sum + row.winRate, 0) / rolePool.length,
+        score: rolePool.reduce((sum, row) => sum + row.score, 0) / rolePool.length,
+        confidence: rolePool.reduce((sum, row) => sum + row.confidence, 0) / rolePool.length,
+        pickRate: rolePool.reduce((sum, row) => sum + row.pickRate, 0) / rolePool.length
+      }
+    : null;
 
   if (!hasPlayer) {
     return <EmptyState title="Busca un jugador para generar tier list" description="El ranking se calcula con campeones jugados en clasificatoria, no con datos inventados." />;
@@ -673,6 +682,33 @@ const TierPanel = ({
                 Cerrar
               </button>
             </div>
+            {roleAverages && (
+              <div className="mb-4 rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-4">
+                <p className="mb-3 text-xs uppercase tracking-wide text-cyan-200">Comparativa contra tu pool del mismo rol</p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
+                    <p className="text-xs text-zinc-500">Win rate</p>
+                    <ProgressBar value={(expandedRow.winRate / Math.max(1, roleAverages.winRate)) * 100} tone={expandedRow.winRate >= roleAverages.winRate ? 'emerald' : 'rose'} />
+                    <p className="mt-1 text-xs text-zinc-400">{formatDecimal(expandedRow.winRate)}% vs {formatDecimal(roleAverages.winRate)}%</p>
+                  </div>
+                  <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
+                    <p className="text-xs text-zinc-500">Score</p>
+                    <ProgressBar value={(expandedRow.score / Math.max(1, roleAverages.score)) * 100} tone={expandedRow.score >= roleAverages.score ? 'teal' : 'amber'} />
+                    <p className="mt-1 text-xs text-zinc-400">{formatDecimal(expandedRow.score)} vs {formatDecimal(roleAverages.score)}</p>
+                  </div>
+                  <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
+                    <p className="text-xs text-zinc-500">Confianza</p>
+                    <ProgressBar value={(expandedRow.confidence / Math.max(1, roleAverages.confidence)) * 100} tone={expandedRow.confidence >= roleAverages.confidence ? 'emerald' : 'amber'} />
+                    <p className="mt-1 text-xs text-zinc-400">{formatDecimal(expandedRow.confidence)}% vs {formatDecimal(roleAverages.confidence)}%</p>
+                  </div>
+                  <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
+                    <p className="text-xs text-zinc-500">Pick rate</p>
+                    <ProgressBar value={(expandedRow.pickRate / Math.max(1, roleAverages.pickRate)) * 100} tone="teal" />
+                    <p className="mt-1 text-xs text-zinc-400">{formatDecimal(expandedRow.pickRate)}% vs {formatDecimal(roleAverages.pickRate)}%</p>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
               <div className="rounded-lg border border-zinc-800 bg-black/20 p-4">
                 <p className="text-xs uppercase tracking-wide text-zinc-500">Pros (tu data)</p>
@@ -697,6 +733,24 @@ const TierPanel = ({
                       ? 'Pick situacionalmente fuerte: úsalo cuando tengas matchup y plan claro.'
                       : 'No recomendado para subir LP en este momento; mejor úsalo en práctica o dodge spots malos.'}
                 </p>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-3">
+                    <p className="text-xs uppercase tracking-wide text-emerald-200">Hacer</p>
+                    <ul className="mt-2 space-y-1 text-sm text-zinc-200">
+                      <li>• Forzar este pick cuando tu confianza esté &gt; {formatDecimal(Math.max(55, roleAverages?.confidence ?? 55))}%.</li>
+                      <li>• Priorizar draft donde tengas línea estable y setup de objetivos.</li>
+                      <li>• Repetir core items para mantener consistencia de ejecución.</li>
+                    </ul>
+                  </div>
+                  <div className="rounded-md border border-rose-500/20 bg-rose-500/5 p-3">
+                    <p className="text-xs uppercase tracking-wide text-rose-200">Evitar</p>
+                    <ul className="mt-2 space-y-1 text-sm text-zinc-200">
+                      <li>• No spamear si tu WR cae por debajo de {formatDecimal(Math.max(49, (roleAverages?.winRate ?? 49) - 1))}%.</li>
+                      <li>• Evitar picks de comfort sin prioridad de visión/tempo.</li>
+                      <li>• No forzar si vienes de racha de tilt o macro inestable.</li>
+                    </ul>
+                  </div>
+                </div>
                 <div className="mt-4 rounded-md border border-zinc-800 bg-zinc-950/60 p-3">
                   <p className="mb-2 text-xs uppercase tracking-wide text-zinc-500">Core items más frecuentes</p>
                   <ItemStrip itemIds={expandedRow.coreItemIds} version={version} itemCatalog={itemCatalog} />
