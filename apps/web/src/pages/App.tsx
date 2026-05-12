@@ -48,8 +48,8 @@ const navItems: { key: ViewKey; label: string }[] = [
   { key: 'guides', label: 'Guides' }
 ];
 
-const rankedMatchFetchCount = 40;
-const insightMatchFetchCount = 80;
+const rankedMatchFetchCount = 70;
+const insightMatchFetchCount = 140;
 
 const rankedQueueOptions: { key: RankedQueueKey; label: string; shortLabel: string }[] = [
   { key: 'solo', label: 'Solo/Duo', shortLabel: 'SoloQ' },
@@ -710,6 +710,10 @@ const TierPanel = ({
               </div>
             )}
             <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+              {(() => {
+                const actions = championActionPlan(expandedRow, expandedChampion.name, roleAverages ? { winRate: roleAverages.winRate, confidence: roleAverages.confidence } : undefined);
+                return (
+                  <>
               <div className="rounded-lg border border-zinc-800 bg-black/20 p-4">
                 <p className="text-xs uppercase tracking-wide text-zinc-500">Pros (tu data)</p>
                 <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-200">
@@ -737,17 +741,13 @@ const TierPanel = ({
                   <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-3">
                     <p className="text-xs uppercase tracking-wide text-emerald-200">Hacer</p>
                     <ul className="mt-2 space-y-1 text-sm text-zinc-200">
-                      <li>• Forzar este pick cuando tu confianza esté &gt; {formatDecimal(Math.max(55, roleAverages?.confidence ?? 55))}%.</li>
-                      <li>• Priorizar draft donde tengas línea estable y setup de objetivos.</li>
-                      <li>• Repetir core items para mantener consistencia de ejecución.</li>
+                      {actions.doItems.map((item) => <li key={item}>• {item}</li>)}
                     </ul>
                   </div>
                   <div className="rounded-md border border-rose-500/20 bg-rose-500/5 p-3">
                     <p className="text-xs uppercase tracking-wide text-rose-200">Evitar</p>
                     <ul className="mt-2 space-y-1 text-sm text-zinc-200">
-                      <li>• No spamear si tu WR cae por debajo de {formatDecimal(Math.max(49, (roleAverages?.winRate ?? 49) - 1))}%.</li>
-                      <li>• Evitar picks de comfort sin prioridad de visión/tempo.</li>
-                      <li>• No forzar si vienes de racha de tilt o macro inestable.</li>
+                      {actions.avoidItems.map((item) => <li key={item}>• {item}</li>)}
                     </ul>
                   </div>
                 </div>
@@ -756,6 +756,9 @@ const TierPanel = ({
                   <ItemStrip itemIds={expandedRow.coreItemIds} version={version} itemCatalog={itemCatalog} />
                 </div>
               </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -1303,7 +1306,15 @@ interface GuidePlan {
   steps: string[];
 }
 
-const MatchReviewPanel = ({ match, championCatalog }: { match?: MatchOverview; championCatalog?: ChampionCatalogMap }) => {
+const MatchReviewPanel = ({
+  match,
+  championCatalog,
+  baseline
+}: {
+  match?: MatchOverview;
+  championCatalog?: ChampionCatalogMap;
+  baseline: { damage: number; vision: number; gold: number; kp: number };
+}) => {
   if (!match) return null;
   const champion = getChampion(championCatalog, match.championId, match.championName);
   const kda = ((match.kills + match.assists) / Math.max(1, match.deaths)).toFixed(2);
@@ -1312,6 +1323,14 @@ const MatchReviewPanel = ({ match, championCatalog }: { match?: MatchOverview; c
     match.visionScore < 20 ? 'Vision baja para ranked; añade control ward en cada back importante.' : 'Vision aceptable para mantener mapa jugable.',
     match.csPerMinute < 6.5 ? `Farming mejorable (${match.csPerMinute.toFixed(1)} cs/min).` : `Buen ritmo de farm (${match.csPerMinute.toFixed(1)} cs/min).`
   ];
+  const comparatives: Array<{ label: string; current: number; avg: number; tone: 'emerald' | 'amber' | 'rose' }> = [
+    { label: 'Daño', current: match.damageToChampions, avg: baseline.damage, tone: match.damageToChampions >= baseline.damage ? 'emerald' : 'rose' },
+    { label: 'Visión', current: match.visionScore, avg: baseline.vision, tone: match.visionScore >= baseline.vision ? 'emerald' : 'amber' },
+    { label: 'Oro', current: match.goldEarned, avg: baseline.gold, tone: match.goldEarned >= baseline.gold ? 'emerald' : 'amber' },
+    { label: 'KP', current: match.killParticipation, avg: baseline.kp, tone: match.killParticipation >= baseline.kp ? 'emerald' : 'rose' }
+  ];
+  const errors = notes.filter((note) => note.includes('demasiado') || note.includes('baja') || note.includes('mejorable'));
+  const improvements = notes.filter((note) => !errors.includes(note));
   return (
     <Panel className="border-indigo-500/25 bg-indigo-950/20">
       <SectionHeading title={`Review · ${champion.name}`} caption={`${shortQueue(match.queueId)} · ${match.win ? 'Victoria' : 'Derrota'} · KDA ${kda}`} />
@@ -1322,7 +1341,25 @@ const MatchReviewPanel = ({ match, championCatalog }: { match?: MatchOverview; c
         <Metric label="KP" value={`${match.killParticipation.toFixed(0)}%`} tone="rose" />
       </div>
       <div className="mt-3 rounded-md border border-zinc-800 bg-black/20 p-3">
-        {notes.map((note) => <p key={note} className="text-sm text-zinc-200">• {note}</p>)}
+        <p className="mb-2 text-xs uppercase tracking-wide text-zinc-500">Comparativa visual vs tu promedio</p>
+        <div className="grid gap-2 md:grid-cols-2">
+          {comparatives.map((item) => (
+            <div key={item.label} className="rounded-md border border-zinc-800 bg-black/25 p-2">
+              <p className="text-xs text-zinc-400">{item.label}: {formatDecimal(item.current)} / {formatDecimal(item.avg)}</p>
+              <ProgressBar value={(item.current / Math.max(1, item.avg)) * 100} tone={item.tone} />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        <div className="rounded-md border border-rose-500/25 bg-rose-950/15 p-3">
+          <p className="text-xs uppercase tracking-wide text-rose-200">Errores detectados</p>
+          {(errors.length ? errors : ['Sin errores críticos en esta muestra.']).map((note) => <p key={note} className="text-sm text-zinc-200">• {note}</p>)}
+        </div>
+        <div className="rounded-md border border-emerald-500/25 bg-emerald-950/15 p-3">
+          <p className="text-xs uppercase tracking-wide text-emerald-200">Mejoras accionables</p>
+          {(improvements.length ? improvements : ['Mantén esta línea de ejecución y compárala con tus derrotas.']).map((note) => <p key={note} className="text-sm text-zinc-200">• {note}</p>)}
+        </div>
       </div>
     </Panel>
   );
@@ -1415,6 +1452,36 @@ const buildGuidePlans = (analytics: PlayerAnalytics, matches: MatchOverview[], c
       source: `${roleLabels[dominantRole]} - ${analytics.games} partidas`,
       steps: guideSteps(score, analytics, dominantRole, championName)
     }));
+};
+
+const championActionPlan = (
+  row: { winRate: number; confidence: number; pickRate: number; games: number; tier: string; role: ChampionRole },
+  championName: string,
+  roleAverage?: { winRate: number; confidence: number }
+) => {
+  const wrDelta = row.winRate - (roleAverage?.winRate ?? row.winRate);
+  const confidenceDelta = row.confidence - (roleAverage?.confidence ?? row.confidence);
+  const highSample = row.games >= 12;
+  const playStyle = row.pickRate >= 7 ? 'pick principal' : row.pickRate >= 4 ? 'pick situacional' : 'pick de counter';
+
+  const doItems = [
+    `Juega ${championName} como ${playStyle} cuando tengas plan de línea para ${roleLabels[row.role]}.`,
+    wrDelta >= 0
+      ? `Repite tu plan actual: estás ${formatDecimal(Math.abs(wrDelta))}% por encima de tu media del rol.`
+      : `Ajusta primeros 10 min: estás ${formatDecimal(Math.abs(wrDelta))}% por debajo de la media del rol.`,
+    confidenceDelta >= 0
+      ? `Puedes blindearlo con más seguridad (${formatDecimal(row.confidence)}% de confianza).`
+      : `Prioriza matchup favorable hasta subir confianza (actual ${formatDecimal(row.confidence)}%).`,
+    highSample ? `Muestra sólida (${row.games} games): usa este patrón para escalar LP.` : `Muestra corta (${row.games} games): valida el plan en más rankeds antes de spamear.`
+  ];
+
+  const avoidItems = [
+    row.tier === 'B' || row.tier === 'C' ? `No forzar ${championName} en first pick cuando el draft rival tenga engage fuerte.` : `No overforce peleas sin visión solo por ir arriba en KDA.`,
+    row.winRate < 50 ? `Evita series largas con ${championName} hasta recuperar WR > 50%.` : `Evita cambiar build core cada partida; conserva consistencia.`,
+    row.confidence < 55 ? 'No pelear objetivos sin prioridad de líneas o timers de summoners.' : 'No regalar shutdowns: juega setup de visión antes de flankear.'
+  ];
+
+  return { doItems, avoidItems };
 };
 
 const averageValues = (values: number[]) => {
@@ -1771,18 +1838,11 @@ export const App = () => {
                 {matches.length > 0 ? (
                   <div className="space-y-3">
                     <MatchHistoryTable matches={matches} dataDragonVersion={version} championCatalog={championCatalog} title={`Historial ${activeQueueLabel}`} />
-                    <Panel>
-                      <div className="grid gap-3 md:grid-cols-[minmax(220px,1fr)_auto]">
-                        <Select
-                          label="Partida para review"
-                          value={selectedReviewMatch?.matchId ?? ''}
-                          onChange={setSelectedReviewMatchId}
-                          options={matches.slice(0, 15).map((match) => ({ value: match.matchId, label: `${new Date(match.gameCreation).toLocaleDateString('es')} · ${match.championName} · ${match.win ? 'Win' : 'Lose'}` }))}
-                        />
-                        <Metric label="Muestras review" value={`${matches.length}`} tone="teal" />
-                      </div>
-                    </Panel>
-                    <MatchReviewPanel match={selectedReviewMatch} championCatalog={championCatalog} />
+                    <MatchReviewPanel
+                      match={selectedReviewMatch}
+                      championCatalog={championCatalog}
+                      baseline={{ damage: analytics.avgDamage, vision: analytics.avgVision, gold: analytics.avgGold, kp: analytics.avgKillParticipation }}
+                    />
                   </div>
                 ) : (
                   <EmptyState title={`Sin partidas ${activeQueueLabel}`} description="No encontramos partidas clasificatorias cargadas para este jugador." />

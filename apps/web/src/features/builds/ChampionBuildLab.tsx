@@ -59,14 +59,14 @@ const regionOptions = [
 const fastGlobalRegions = ['kr', 'euw1', 'na1', 'br1', 'la1', 'la2'];
 const buildRequestProfiles = {
   global: {
-    playerLimit: 4,
-    matchesPerPlayer: 3,
-    championMatchLimit: 12
+    playerLimit: 8,
+    matchesPerPlayer: 5,
+    championMatchLimit: 28
   },
   regional: {
-    playerLimit: 8,
-    matchesPerPlayer: 4,
-    championMatchLimit: 18
+    playerLimit: 12,
+    matchesPerPlayer: 6,
+    championMatchLimit: 36
   }
 };
 
