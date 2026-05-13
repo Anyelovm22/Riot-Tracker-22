@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
+import { useSearchParams } from 'react-router-dom';
 import { EmptyState } from '../components/EmptyState';
 import { ErrorState } from '../components/ErrorState';
 import { MetricCard } from '../components/MetricCard';
@@ -1655,9 +1656,68 @@ const GuidesPanel = ({
   );
 };
 
+const ChampionRecommendationPanel = ({
+  insights,
+  championCatalog,
+  version
+}: {
+  insights?: ChampionInsightsResponse;
+  championCatalog?: ChampionCatalogMap;
+  version?: string;
+}) => {
+  const tierRows = insights?.tierList ?? [];
+  const strong = tierRows.filter((row) => row.games >= 3).sort((a, b) => b.score - a.score).slice(0, 5);
+  const weak = tierRows.filter((row) => row.games >= 3).sort((a, b) => a.score - b.score).slice(0, 5);
+  const renderRows = (rows: typeof tierRows, emptyText: string, tone: 'emerald' | 'rose') => {
+    if (rows.length === 0) {
+      return <p className="text-sm text-zinc-500">{emptyText}</p>;
+    }
+    return (
+      <div className="space-y-2">
+        {rows.map((row) => {
+          const champion = championCatalog?.[row.championId];
+          return (
+            <div key={`${row.championId}-${row.role}`} className="flex items-center justify-between rounded-md border border-zinc-800 bg-black/20 p-2">
+              <div className="flex items-center gap-2">
+                <ChampionAvatar championKey={champion?.id ?? row.championName} name={champion?.name ?? row.championName} version={version} className="h-9 w-9" />
+                <div>
+                  <p className="text-sm font-semibold text-zinc-100">{champion?.name ?? row.championName}</p>
+                  <p className="text-xs text-zinc-500">{roleLabels[row.role]} · {row.games} partidas</p>
+                </div>
+              </div>
+              <span className={clsx('text-xs font-semibold', tone === 'emerald' ? 'text-emerald-300' : 'text-rose-300')}>{row.winRate.toFixed(1)}%</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  return (
+    <Panel>
+      <SectionHeading title="Pool recomendado" caption="Qué campeones priorizar o evitar basado en tu rendimiento reciente." />
+      <div className="space-y-4">
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-300">Deberías jugar</p>
+          {renderRows(strong, 'Sin datos suficientes para recomendar picks.', 'emerald')}
+        </div>
+        <div className="border-t border-zinc-800 pt-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-rose-300">Mejor evita por ahora</p>
+          {renderRows(weak, 'Sin datos suficientes para evitar picks.', 'rose')}
+        </div>
+      </div>
+    </Panel>
+  );
+};
+
 export const App = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialRegion = searchParams.get('region') ?? 'na1';
+  const initialGameName = searchParams.get('gameName') ?? '';
+  const initialTagLine = searchParams.get('tagLine') ?? '';
+  const initialView = (searchParams.get('view') as ViewKey | null) ?? 'profile';
   const [search, setSearch] = useState<SearchState | null>(null);
-  const [activeView, setActiveView] = useState<ViewKey>('profile');
+  const [activeView, setActiveView] = useState<ViewKey>(initialView);
   const [selectedChallenge, setSelectedChallenge] = useState('farm-10');
   const [selectedReviewMatchId, setSelectedReviewMatchId] = useState('');
   const [rankedQueue, setRankedQueue] = useState<RankedQueueKey>('solo');
@@ -1762,19 +1822,60 @@ export const App = () => {
   });
 
   const aiCoachError = (coachRecommendationsQuery.error as Error)?.message;
+  useEffect(() => {
+    if (!initialGameName || !initialTagLine) return;
+    setSearch({ region: initialRegion, gameName: initialGameName, tagLine: initialTagLine });
+  }, [initialGameName, initialRegion, initialTagLine]);
+
+  const updateUrl = (nextSearch: SearchState | null, nextView: ViewKey) => {
+    const params = new URLSearchParams();
+    params.set('view', nextView);
+    if (nextSearch) {
+      params.set('region', nextSearch.region);
+      params.set('gameName', nextSearch.gameName);
+      params.set('tagLine', nextSearch.tagLine);
+    }
+    setSearchParams(params, { replace: true });
+  };
 
   return (
     <MainLayout>
       <div className="space-y-5">
-        <SearchBar onSearch={setSearch} isLoading={summaryQuery.isFetching} />
+        <SearchBar
+          onSearch={(next) => {
+            setSearch(next);
+            updateUrl(next, activeView);
+          }}
+          isLoading={summaryQuery.isFetching}
+          initialRegion={initialRegion}
+          initialRiotId={initialGameName && initialTagLine ? `${initialGameName}#${initialTagLine}` : ''}
+        />
 
         <nav className="flex gap-2 overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950/65 p-2">
           {navItems.map((item) => (
-            <TabButton key={item.key} active={activeView === item.key} onClick={() => setActiveView(item.key)}>
+            <TabButton key={item.key} active={activeView === item.key} onClick={() => {
+              setActiveView(item.key);
+              updateUrl(search, item.key);
+            }}>
               {item.label}
             </TabButton>
           ))}
         </nav>
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              summaryQuery.refetch();
+              rankedMatchesQuery.refetch();
+              championInsightsQuery.refetch();
+              liveQuery.refetch();
+              coachRecommendationsQuery.refetch();
+            }}
+            className="rounded-md border border-zinc-700 px-3 py-2 text-sm font-semibold text-zinc-200 transition hover:border-teal-300 hover:text-teal-200"
+          >
+            Refrescar datos
+          </button>
+        </div>
 
         {!search && activeView === 'profile' && (
           <div className="grid gap-4 lg:grid-cols-4">
@@ -1848,7 +1949,10 @@ export const App = () => {
                   <EmptyState title={`Sin partidas ${activeQueueLabel}`} description="No encontramos partidas clasificatorias cargadas para este jugador." />
                 )}
               </div>
-              <ChampionMasteryList mastery={summaryQuery.data.masteryTop} dataDragonVersion={version} championCatalog={championCatalog} />
+              <div className="space-y-4">
+                <ChampionMasteryList mastery={summaryQuery.data.masteryTop} dataDragonVersion={version} championCatalog={championCatalog} />
+                <ChampionRecommendationPanel insights={championInsightsQuery.data} championCatalog={championCatalog} version={version} />
+              </div>
             </section>
             <RankedTable ranked={summaryQuery.data.ranked} activeQueue={rankedQueue} />
           </div>
