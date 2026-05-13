@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 interface SearchBarProps {
   onSearch: (args: { region: string; gameName: string; tagLine: string }) => void;
@@ -51,6 +51,14 @@ export const SearchBar = ({ onSearch, isLoading, initialRegion = 'na1', initialR
   const [manualGameName, setManualGameName] = useState('');
   const [manualTagLine, setManualTagLine] = useState('');
   const [submitError, setSubmitError] = useState('');
+
+  useEffect(() => {
+    setRegion(initialRegion);
+  }, [initialRegion]);
+
+  useEffect(() => {
+    setRiotId(initialRiotId);
+  }, [initialRiotId]);
 
   const parsed = useMemo(() => parseRiotId(riotId), [riotId]);
   const gameName = showSplitFields ? cleanRiotIdPart(manualGameName) : parsed.gameName;
