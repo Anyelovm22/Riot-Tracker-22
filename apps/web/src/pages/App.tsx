@@ -280,6 +280,28 @@ const SkillBars = ({ scores }: { scores: SkillScore[] }) => (
     ))}
   </div>
 );
+const GpiRadar = ({ scores }: { scores: SkillScore[] }) => {
+  const top = scores.slice(0, 5);
+  return (
+    <svg viewBox="0 0 240 240" className="mx-auto h-56 w-56">
+      {[32, 52, 72, 92].map((r) => <circle key={r} cx="120" cy="120" r={r} fill="none" stroke="#334155" strokeWidth="1" />)}
+      {top.map((_, i) => {
+        const angle = (Math.PI * 2 * i) / top.length - Math.PI / 2;
+        return <line key={`gpi-axis-${i}`} x1="120" y1="120" x2={120 + Math.cos(angle) * 92} y2={120 + Math.sin(angle) * 92} stroke="#334155" strokeWidth="1" />;
+      })}
+      <polygon
+        points={top.map((score, i) => {
+          const angle = (Math.PI * 2 * i) / top.length - Math.PI / 2;
+          const ratio = Math.max(0.2, Math.min(1, score.value / 100));
+          return `${120 + Math.cos(angle) * (ratio * 92)} ${120 + Math.sin(angle) * (ratio * 92)}`;
+        }).join(' ')}
+        fill="rgba(56,189,248,.25)"
+        stroke="#38bdf8"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+};
 
 const ProfileDashboard = ({
   analytics,
@@ -298,6 +320,10 @@ const ProfileDashboard = ({
     <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
       <Panel>
         <SectionHeading title="GPI" caption={`${analytics.games} partidas clasificatorias procesadas`} />
+        <div className="mb-4 rounded-lg border border-zinc-800 bg-black/20 p-3">
+          <p className="mb-2 text-xs uppercase tracking-wide text-zinc-500">Vista general estilo Mobalytics</p>
+          <GpiRadar scores={analytics.gpi} />
+        </div>
         <SkillBars scores={analytics.gpi} />
       </Panel>
 
@@ -1877,19 +1903,31 @@ export const App = () => {
           ))}
         </nav>
         <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={() => {
-              summaryQuery.refetch();
-              rankedMatchesQuery.refetch();
-              championInsightsQuery.refetch();
-              liveQuery.refetch();
-              coachRecommendationsQuery.refetch();
-            }}
-            className="rounded-md border border-zinc-700 px-3 py-2 text-sm font-semibold text-zinc-200 transition hover:border-teal-300 hover:text-teal-200"
-          >
-            Refrescar datos
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSearch(null);
+                setSearchParams(new URLSearchParams({ view: activeView }));
+              }}
+              className="rounded-md border border-rose-700/60 px-3 py-2 text-sm font-semibold text-rose-200 transition hover:border-rose-400"
+            >
+              Limpiar búsqueda
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                summaryQuery.refetch();
+                rankedMatchesQuery.refetch();
+                championInsightsQuery.refetch();
+                liveQuery.refetch();
+                coachRecommendationsQuery.refetch();
+              }}
+              className="rounded-md border border-zinc-700 px-3 py-2 text-sm font-semibold text-zinc-200 transition hover:border-teal-300 hover:text-teal-200"
+            >
+              Refrescar datos
+            </button>
+          </div>
         </div>
 
         {!search && activeView === 'profile' && (
