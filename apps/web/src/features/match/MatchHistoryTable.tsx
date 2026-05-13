@@ -76,9 +76,9 @@ export const MatchHistoryTable = ({
   <>
   <Card title={title}>
     <p className="mb-4 text-sm text-zinc-400">Haz click en cualquier partida para ver un análisis completo y comparativas visuales.</p>
-    <div className="overflow-x-auto">
+    <div className="max-h-[520px] overflow-auto rounded-lg border border-zinc-800/80">
       <table className="min-w-full text-left text-sm">
-        <thead>
+        <thead className="sticky top-0 z-10 bg-zinc-950">
           <tr className="border-b border-zinc-800 text-zinc-400">
             <th className="py-2">Partida</th>
             <th>Cola</th>
