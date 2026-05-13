@@ -18,8 +18,7 @@ const rankedLabel = (ranked: RankedEntry[], queue: RankedQueueKey) => {
   return `${entry.tier} ${entry.rank} - ${entry.leaguePoints} LP`;
 };
 const rankedEntry = (ranked: RankedEntry[], queue: RankedQueueKey) => ranked.find((item) => item.queueType === queueTypes[queue]);
-const rankIconUrl = (tier?: string) =>
-  tier ? `https://raw.githubusercontent.com/mrtolkien/league-assets/main/ranked-emblems/Emblem_${tier.toUpperCase()}.png` : '';
+const rankBadge = (tier?: string) => (tier ? tier.slice(0, 2).toUpperCase() : '--');
 
 export const ProfileHeader = ({
   profile,
@@ -50,9 +49,9 @@ export const ProfileHeader = ({
       <div className="rounded-md border border-zinc-800 bg-black/20 px-3 py-2">
         <p className="text-xs uppercase tracking-wide text-zinc-500">{queueLabels[activeQueue]}</p>
         <div className="flex items-center justify-end gap-2">
-          {rankedEntry(ranked, activeQueue)?.tier && (
-            <img src={rankIconUrl(rankedEntry(ranked, activeQueue)?.tier)} alt="" className="h-9 w-9 object-contain" />
-          )}
+          <span className="grid h-9 w-9 place-items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 text-xs font-bold text-emerald-200">
+            {rankBadge(rankedEntry(ranked, activeQueue)?.tier)}
+          </span>
           <p className="font-semibold text-zinc-100">{rankedLabel(ranked, activeQueue)}</p>
         </div>
       </div>

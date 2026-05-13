@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { Card } from '../../components/Card';
@@ -162,7 +163,7 @@ export const MatchHistoryTable = ({
       </table>
     </div>
   </Card>
-  {selectedMatch && averages && (
+  {selectedMatch && averages && createPortal(
       <div className="fixed inset-0 z-50 overflow-y-auto bg-[#02061a]/95 p-4">
       <div className="mx-auto max-w-7xl overflow-hidden rounded-2xl border border-cyan-500/35 bg-gradient-to-b from-[#11193d] via-[#0d1434] to-[#0a1028] p-5 shadow-2xl shadow-cyan-900/20">
         <div className="mb-4 flex items-center justify-between">
@@ -280,7 +281,7 @@ export const MatchHistoryTable = ({
         )}
       </div>
       </div>
-  )}
+  , document.body)}
   </>
 );
 };

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useSearchParams } from 'react-router-dom';
 import { EmptyState } from '../components/EmptyState';
@@ -1763,6 +1763,7 @@ export const App = () => {
   const [activeView, setActiveView] = useState<ViewKey>(initialView);
   const [selectedChallenge, setSelectedChallenge] = useState('farm-10');
   const [rankedQueue, setRankedQueue] = useState<RankedQueueKey>('solo');
+  const queryClient = useQueryClient();
 
   const dataDragonQuery = useQuery({
     queryKey: ['ddragon-version'],
@@ -1806,16 +1807,35 @@ export const App = () => {
     queryFn: () => riotApi.getRankedMatches(search!.region, summaryQuery.data!.puuid, rankedQueue, rankedMatchFetchCount),
     enabled: Boolean(search && summaryQuery.data?.puuid),
     staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 30,
+    placeholderData: keepPreviousData,
     retry: false
   });
 
   const championInsightsQuery = useQuery({
     queryKey: ['champion-insights', search, summaryQuery.data?.puuid, rankedQueue],
     queryFn: () => riotApi.getChampionInsights(search!.region, summaryQuery.data!.puuid, rankedQueue, insightMatchFetchCount),
-    enabled: Boolean(search && summaryQuery.data?.puuid && (activeView === 'tier' || activeView === 'builds')),
+    enabled: Boolean(search && summaryQuery.data?.puuid),
     staleTime: 1000 * 60 * 3,
+    gcTime: 1000 * 60 * 30,
+    placeholderData: keepPreviousData,
     retry: false
   });
+  useEffect(() => {
+    if (!search || !summaryQuery.data?.puuid) return;
+    (['solo', 'flex'] as RankedQueueKey[]).forEach((queue) => {
+      queryClient.prefetchQuery({
+        queryKey: ['ranked-matches', search, summaryQuery.data?.puuid, queue],
+        queryFn: () => riotApi.getRankedMatches(search.region, summaryQuery.data!.puuid, queue, rankedMatchFetchCount),
+        staleTime: 1000 * 60 * 2
+      });
+      queryClient.prefetchQuery({
+        queryKey: ['champion-insights', search, summaryQuery.data?.puuid, queue],
+        queryFn: () => riotApi.getChampionInsights(search.region, summaryQuery.data!.puuid, queue, insightMatchFetchCount),
+        staleTime: 1000 * 60 * 3
+      });
+    });
+  }, [queryClient, search, summaryQuery.data?.puuid]);
 
   const liveQuery = useQuery({
     queryKey: ['live', search, summaryQuery.data?.puuid],
