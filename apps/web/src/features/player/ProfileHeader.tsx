@@ -17,6 +17,9 @@ const rankedLabel = (ranked: RankedEntry[], queue: RankedQueueKey) => {
   if (!entry) return 'Unranked';
   return `${entry.tier} ${entry.rank} - ${entry.leaguePoints} LP`;
 };
+const rankedEntry = (ranked: RankedEntry[], queue: RankedQueueKey) => ranked.find((item) => item.queueType === queueTypes[queue]);
+const rankIconUrl = (tier?: string) =>
+  tier ? `https://raw.githubusercontent.com/mrtolkien/league-assets/main/ranked-emblems/Emblem_${tier.toUpperCase()}.png` : '';
 
 export const ProfileHeader = ({
   profile,
@@ -46,7 +49,12 @@ export const ProfileHeader = ({
     <div className="grid grid-cols-2 gap-2 text-sm sm:text-right">
       <div className="rounded-md border border-zinc-800 bg-black/20 px-3 py-2">
         <p className="text-xs uppercase tracking-wide text-zinc-500">{queueLabels[activeQueue]}</p>
-        <p className="font-semibold text-zinc-100">{rankedLabel(ranked, activeQueue)}</p>
+        <div className="flex items-center justify-end gap-2">
+          {rankedEntry(ranked, activeQueue)?.tier && (
+            <img src={rankIconUrl(rankedEntry(ranked, activeQueue)?.tier)} alt="" className="h-9 w-9 object-contain" />
+          )}
+          <p className="font-semibold text-zinc-100">{rankedLabel(ranked, activeQueue)}</p>
+        </div>
       </div>
       <div className="rounded-md border border-zinc-800 bg-black/20 px-3 py-2">
         <p className="text-xs uppercase tracking-wide text-zinc-500">Icono</p>
