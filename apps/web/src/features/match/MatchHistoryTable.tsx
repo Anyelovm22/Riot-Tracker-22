@@ -7,6 +7,14 @@ import { riotApi } from '../../services/riotApi';
 import { MatchOverview } from '../../types/api';
 
 const formatDuration = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+const formatAgo = (timestamp: number) => {
+  const diffDays = Math.max(0, Math.floor((Date.now() - timestamp) / (1000 * 60 * 60 * 24)));
+  if (diffDays < 1) return 'hoy';
+  if (diffDays === 1) return 'hace 1 día';
+  if (diffDays < 7) return `hace ${diffDays} días`;
+  const weeks = Math.floor(diffDays / 7);
+  return `hace ${weeks} semana${weeks === 1 ? '' : 's'}`;
+};
 
 const shortQueue = (queueId: number) => {
   if (queueId === 420) return 'Solo/Duo';
@@ -71,6 +79,15 @@ export const MatchHistoryTable = ({
       text: `${delta >= 0 ? '+' : '-'}${abs.toFixed(1)}`
     };
   };
+  const radarStats = selectedMatch && averages
+    ? [
+        { label: 'KDA', value: (selectedMatch.kills + selectedMatch.assists) / Math.max(1, selectedMatch.deaths), avg: 2.4, goodWhenHigher: true },
+        { label: 'CS', value: selectedMatch.csPerMinute, avg: averages.cs, goodWhenHigher: true },
+        { label: 'Vision', value: selectedMatch.visionScore, avg: averages.vision, goodWhenHigher: true },
+        { label: 'KP', value: selectedMatch.killParticipation, avg: averages.kp, goodWhenHigher: true },
+        { label: 'DPM', value: selectedMatch.damagePerMinute, avg: averages.dpm, goodWhenHigher: true }
+      ]
+    : [];
 
   return (
   <>
@@ -146,20 +163,45 @@ export const MatchHistoryTable = ({
     </div>
   </Card>
   {selectedMatch && averages && (
-      <div className="mt-5 overflow-hidden rounded-2xl border border-cyan-500/35 bg-gradient-to-b from-[#11193d] via-[#0d1434] to-[#0a1028] p-5 shadow-2xl shadow-cyan-900/20">
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-[#02061a]/95 p-4">
+      <div className="mx-auto max-w-7xl overflow-hidden rounded-2xl border border-cyan-500/35 bg-gradient-to-b from-[#11193d] via-[#0d1434] to-[#0a1028] p-5 shadow-2xl shadow-cyan-900/20">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-cyan-300">Desglose profesional de partida</p>
-            <p className="text-xs text-zinc-400">Match {selectedMatch.matchId.slice(-8)} · {shortQueue(selectedMatch.queueId)} · {formatDuration(selectedMatch.gameDurationSeconds)}</p>
+            <p className="text-xs text-zinc-400">Match {selectedMatch.matchId.slice(-8)} · {shortQueue(selectedMatch.queueId)} · {formatDuration(selectedMatch.gameDurationSeconds)} · {formatAgo(selectedMatch.gameCreation)}</p>
           </div>
           <button type="button" onClick={() => setSelectedMatchId('')} className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200 hover:border-zinc-500">Cerrar</button>
         </div>
-        <div className="grid gap-4 md:grid-cols-5">
-          <div className="rounded-md border border-zinc-800 bg-black/20 p-3"><p className="text-xs text-zinc-500">KDA</p><p className="text-2xl font-bold text-white">{selectedMatch.kills}/{selectedMatch.deaths}/{selectedMatch.assists}</p></div>
-          <div className="rounded-md border border-zinc-800 bg-black/20 p-3"><p className="text-xs text-zinc-500">Resultado</p><p className={clsx('text-2xl font-bold', selectedMatch.win ? 'text-emerald-300' : 'text-rose-300')}>{selectedMatch.win ? 'Victoria' : 'Derrota'}</p></div>
-          <div className="rounded-md border border-zinc-800 bg-black/20 p-3"><p className="text-xs text-zinc-500">Objetivos</p><p className="text-2xl font-bold text-white">{selectedMatch.objectiveTakedowns}</p></div>
-          <div className="rounded-md border border-zinc-800 bg-black/20 p-3"><p className="text-xs text-zinc-500">Tiempo muerto</p><p className="text-2xl font-bold text-white">{Math.round(selectedMatch.totalTimeSpentDead / 60)}m</p></div>
-          <div className="rounded-md border border-zinc-800 bg-black/20 p-3"><p className="text-xs text-zinc-500">Daño/min</p><p className="text-2xl font-bold text-white">{selectedMatch.damagePerMinute.toFixed(0)}</p></div>
+        <div className="mb-4 grid gap-4 lg:grid-cols-[320px_1fr]">
+          <div className="rounded-xl border border-zinc-700 bg-black/20 p-4">
+            <p className="text-xs uppercase tracking-wide text-zinc-400">Mapa de rendimiento</p>
+            <svg viewBox="0 0 240 240" className="mx-auto mt-2 h-56 w-56">
+              {[35, 55, 75, 95].map((r) => <circle key={r} cx="120" cy="120" r={r} fill="none" stroke="#334155" strokeWidth="1" />)}
+              {radarStats.map((_, i) => {
+                const angle = (Math.PI * 2 * i) / radarStats.length - Math.PI / 2;
+                return <line key={`axis-${i}`} x1="120" y1="120" x2={120 + Math.cos(angle) * 95} y2={120 + Math.sin(angle) * 95} stroke="#334155" strokeWidth="1" />;
+              })}
+              <polygon
+                points={radarStats
+                  .map((stat, i) => {
+                    const angle = (Math.PI * 2 * i) / radarStats.length - Math.PI / 2;
+                    const ratio = Math.max(0.2, Math.min(1, stat.value / Math.max(1, stat.avg)));
+                    return `${120 + Math.cos(angle) * (ratio * 95)} ${120 + Math.sin(angle) * (ratio * 95)}`;
+                  })
+                  .join(' ')}
+                fill="rgba(45,212,191,.25)"
+                stroke="#2dd4bf"
+                strokeWidth="2"
+              />
+            </svg>
+          </div>
+          <div className="grid gap-4 md:grid-cols-5">
+            <div className="rounded-md border border-zinc-800 bg-black/20 p-3"><p className="text-xs text-zinc-500">KDA</p><p className="text-2xl font-bold text-white">{selectedMatch.kills}/{selectedMatch.deaths}/{selectedMatch.assists}</p></div>
+            <div className="rounded-md border border-zinc-800 bg-black/20 p-3"><p className="text-xs text-zinc-500">Resultado</p><p className={clsx('text-2xl font-bold', selectedMatch.win ? 'text-emerald-300' : 'text-rose-300')}>{selectedMatch.win ? 'Victoria' : 'Derrota'}</p></div>
+            <div className="rounded-md border border-zinc-800 bg-black/20 p-3"><p className="text-xs text-zinc-500">Objetivos</p><p className="text-2xl font-bold text-white">{selectedMatch.objectiveTakedowns}</p></div>
+            <div className="rounded-md border border-zinc-800 bg-black/20 p-3"><p className="text-xs text-zinc-500">Tiempo muerto</p><p className="text-2xl font-bold text-white">{Math.round(selectedMatch.totalTimeSpentDead / 60)}m</p></div>
+            <div className="rounded-md border border-zinc-800 bg-black/20 p-3"><p className="text-xs text-zinc-500">Daño/min</p><p className="text-2xl font-bold text-white">{selectedMatch.damagePerMinute.toFixed(0)}</p></div>
+          </div>
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           {renderComparison('CS/min', selectedMatch.csPerMinute, averages.cs)}
@@ -189,8 +231,8 @@ export const MatchHistoryTable = ({
             <p className="text-xs uppercase tracking-wide text-sky-200">Plan para próxima partida</p>
             <ol className="mt-2 space-y-2 text-sm text-zinc-200">
               <li>1) Antes del min 14, coloca 1 ward de control por reset.</li>
-              <li>2) Si vas por delante, convierte ventaja en 1 objetivo neutral.</li>
-              <li>3) En peleas, entra después de CC principal para subir supervivencia.</li>
+              <li>2) {selectedMatch.objectiveTakedowns <= 1 ? 'Fuerza dragón/heraldo tras una kill para no perder tempo.' : 'Mantén rotación a objetivos cuando tengas prioridad.'}</li>
+              <li>3) {selectedMatch.deaths >= 8 ? 'Reduce riesgo: juega con visión antes de pelear.' : 'Aprovecha picos de poder para buscar picks con tu equipo.'}</li>
             </ol>
           </div>
         </div>
@@ -236,6 +278,7 @@ export const MatchHistoryTable = ({
             No pudimos cargar el detalle extendido de esta partida en este momento. Intenta nuevamente.
           </div>
         )}
+      </div>
       </div>
   )}
   </>
