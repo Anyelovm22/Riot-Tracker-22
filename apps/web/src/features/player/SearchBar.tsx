@@ -3,6 +3,8 @@ import { FormEvent, useMemo, useState } from 'react';
 interface SearchBarProps {
   onSearch: (args: { region: string; gameName: string; tagLine: string }) => void;
   isLoading?: boolean;
+  initialRegion?: string;
+  initialRiotId?: string;
 }
 
 const regions = [
@@ -42,9 +44,9 @@ const parseRiotId = (value: string) => {
   };
 };
 
-export const SearchBar = ({ onSearch, isLoading }: SearchBarProps) => {
-  const [region, setRegion] = useState('na1');
-  const [riotId, setRiotId] = useState('');
+export const SearchBar = ({ onSearch, isLoading, initialRegion = 'na1', initialRiotId = '' }: SearchBarProps) => {
+  const [region, setRegion] = useState(initialRegion);
+  const [riotId, setRiotId] = useState(initialRiotId);
   const [showSplitFields, setShowSplitFields] = useState(false);
   const [manualGameName, setManualGameName] = useState('');
   const [manualTagLine, setManualTagLine] = useState('');
