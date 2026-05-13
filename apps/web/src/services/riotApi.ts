@@ -7,6 +7,7 @@ import {
   ChampionRole,
   EliteLeagueTier,
   MatchOverview,
+  MatchDetailResponse,
   PlayerSummary,
   RankedQueueKey
 } from '../types/api';
@@ -77,6 +78,10 @@ export const riotApi = {
 
   async getMatch(region: string, matchId: string, puuid?: string) {
     const { data } = await apiClient.get<MatchOverview>(`/riot/match/${region}/${matchId}`, { params: { puuid } });
+    return data;
+  },
+  async getMatchDetail(region: string, matchId: string) {
+    const { data } = await apiClient.get<MatchDetailResponse>(`/riot/match/${region}/${matchId}`, { params: { detail: 'full' } });
     return data;
   },
 

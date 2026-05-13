@@ -20,6 +20,8 @@ import {
   ChampionTierRow,
   EliteLeagueTier,
   MatchOverview,
+  MatchDetailResponse,
+  MatchParticipantDetail,
   PlatformRegion,
   PlayerSummary,
   RankedEntry,
@@ -1396,6 +1398,59 @@ export class RiotService {
 
     await cacheRepository.set(key, overview, this.defaultTtl);
     return overview;
+  }
+
+  async getMatchDetail(region: PlatformRegion, matchId: string): Promise<MatchDetailResponse> {
+    const key = cacheKey('match-detail', region, matchId);
+    const cached = await cacheRepository.get<MatchDetailResponse>(key);
+    if (cached) return cached;
+
+    const match = await this.getRawMatch(region, matchId);
+    const participants = match.info.participants ?? [];
+    const mapped: MatchParticipantDetail[] = participants.map((participant) => ({
+      puuid: participant.puuid,
+      gameName: participant.riotIdGameName ?? participant.summonerName ?? 'Jugador',
+      tagLine: participant.riotIdTagline ?? '',
+      teamId: participant.teamId,
+      championId: participant.championId,
+      championName: participant.championName,
+      teamPosition: participant.teamPosition || participant.individualPosition || 'UNKNOWN',
+      lane: participant.lane ?? 'UNKNOWN',
+      win: participant.win,
+      kills: participant.kills,
+      deaths: participant.deaths,
+      assists: participant.assists,
+      goldEarned: participant.goldEarned,
+      damageToChampions: participant.totalDamageDealtToChampions,
+      visionScore: participant.visionScore,
+      cs: (participant.totalMinionsKilled ?? 0) + (participant.neutralMinionsKilled ?? 0),
+      itemIds: [participant.item0, participant.item1, participant.item2, participant.item3, participant.item4, participant.item5, participant.item6].filter(Boolean)
+    }));
+
+    const teams = [100, 200]
+      .map((teamId) => {
+        const teamPlayers = mapped.filter((item) => item.teamId === teamId);
+        if (teamPlayers.length === 0) return null;
+        return {
+          teamId,
+          win: teamPlayers.some((item) => item.win),
+          totalGold: teamPlayers.reduce((sum, item) => sum + item.goldEarned, 0),
+          totalDamage: teamPlayers.reduce((sum, item) => sum + item.damageToChampions, 0),
+          totalKills: teamPlayers.reduce((sum, item) => sum + item.kills, 0),
+          participants: teamPlayers
+        };
+      })
+      .filter(Boolean) as MatchDetailResponse['teams'];
+
+    const response: MatchDetailResponse = {
+      matchId,
+      queueId: match.info.queueId,
+      gameDurationSeconds: match.info.gameDuration,
+      gameCreation: match.info.gameCreation,
+      teams
+    };
+    await cacheRepository.set(key, response, this.defaultTtl);
+    return response;
   }
 
   async getLiveGame(region: PlatformRegion, puuid: string): Promise<Record<string, unknown> | null> {

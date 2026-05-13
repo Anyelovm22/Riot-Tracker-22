@@ -1938,7 +1938,7 @@ export const App = () => {
               <div className="lg:col-span-2">
                 {matches.length > 0 ? (
                   <div className="space-y-3">
-                    <MatchHistoryTable matches={matches} dataDragonVersion={version} championCatalog={championCatalog} title={`Historial ${activeQueueLabel}`} />
+                    <MatchHistoryTable matches={matches} dataDragonVersion={version} championCatalog={championCatalog} title={`Historial ${activeQueueLabel}`} region={search?.region} />
                     <MatchReviewPanel
                       match={selectedReviewMatch}
                       championCatalog={championCatalog}

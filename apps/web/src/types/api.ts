@@ -44,6 +44,41 @@ export interface MatchOverview {
   gameCreation: number;
 }
 
+export interface MatchParticipantDetail {
+  puuid: string;
+  gameName: string;
+  tagLine: string;
+  teamId: number;
+  championId: number;
+  championName: string;
+  teamPosition: string;
+  lane: string;
+  win: boolean;
+  kills: number;
+  deaths: number;
+  assists: number;
+  goldEarned: number;
+  damageToChampions: number;
+  visionScore: number;
+  cs: number;
+  itemIds: number[];
+}
+
+export interface MatchDetailResponse {
+  matchId: string;
+  queueId: number;
+  gameDurationSeconds: number;
+  gameCreation: number;
+  teams: Array<{
+    teamId: number;
+    win: boolean;
+    totalGold: number;
+    totalDamage: number;
+    totalKills: number;
+    participants: MatchParticipantDetail[];
+  }>;
+}
+
 export interface RankedEntry {
   queueType: string;
   tier: string;
