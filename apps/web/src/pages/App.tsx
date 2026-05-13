@@ -205,8 +205,15 @@ const ChampionAvatar = ({ championKey, name, version, className }: { championKey
   <div className={clsx('relative grid place-items-center overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900', className)}>
     <img
       src={championIconUrl(version, championKey)}
-      alt=""
+      alt={name}
       className="h-full w-full object-cover"
+      loading="lazy"
+      decoding="async"
+      onLoad={(event) => {
+        event.currentTarget.style.display = '';
+        event.currentTarget.nextElementSibling?.classList.add('hidden');
+        event.currentTarget.nextElementSibling?.classList.remove('grid');
+      }}
       onError={(event) => {
         event.currentTarget.style.display = 'none';
         event.currentTarget.nextElementSibling?.classList.remove('hidden');
@@ -238,7 +245,9 @@ const ItemStrip = ({
         <div key={`${itemId}-${index}`} className="group relative">
           <img
             src={itemIconUrl(version, itemId)}
-            alt=""
+            alt={itemCatalog?.[itemId]?.name ?? `Item ${itemId}`}
+            loading="lazy"
+            decoding="async"
             className={clsx(
               'rounded-md border border-zinc-800 bg-zinc-900 object-cover',
               size === 'sm' && 'h-7 w-7',
@@ -1063,7 +1072,15 @@ const LiveSpellStrip = ({ spellIds, spellCatalog, version }: { spellIds: number[
     {spellIds.filter(Boolean).map((spellId) => {
       const spell = spellCatalog?.[spellId];
       return spell ? (
-        <img key={spellId} src={summonerSpellIconUrl(version, spell.image)} title={spell.name} alt="" className="h-7 w-7 rounded-md border border-zinc-800 bg-zinc-900" />
+        <img
+          key={spellId}
+          src={summonerSpellIconUrl(version, spell.image)}
+          title={spell.name}
+          alt={spell.name}
+          loading="lazy"
+          decoding="async"
+          className="h-7 w-7 rounded-md border border-zinc-800 bg-zinc-900"
+        />
       ) : (
         <span key={spellId} className="grid h-7 w-7 place-items-center rounded-md border border-zinc-800 bg-zinc-900 text-[10px] text-zinc-400">
           {spellId}
@@ -1719,7 +1736,7 @@ export const App = () => {
   const [search, setSearch] = useState<SearchState | null>(null);
   const [activeView, setActiveView] = useState<ViewKey>(initialView);
   const [selectedChallenge, setSelectedChallenge] = useState('farm-10');
-  const [selectedReviewMatchId, setSelectedReviewMatchId] = useState('');
+  const [selectedReviewMatchId] = useState('');
   const [rankedQueue, setRankedQueue] = useState<RankedQueueKey>('solo');
 
   const dataDragonQuery = useQuery({
