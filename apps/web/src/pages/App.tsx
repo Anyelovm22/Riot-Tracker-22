@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useSearchParams } from 'react-router-dom';
 import { EmptyState } from '../components/EmptyState';
@@ -49,8 +49,8 @@ const navItems: { key: ViewKey; label: string }[] = [
   { key: 'guides', label: 'Guides' }
 ];
 
-const rankedMatchFetchCount = 70;
-const insightMatchFetchCount = 140;
+const rankedMatchFetchCount = 140;
+const insightMatchFetchCount = 260;
 
 const rankedQueueOptions: { key: RankedQueueKey; label: string; shortLabel: string }[] = [
   { key: 'solo', label: 'Solo/Duo', shortLabel: 'SoloQ' },
@@ -280,6 +280,28 @@ const SkillBars = ({ scores }: { scores: SkillScore[] }) => (
     ))}
   </div>
 );
+const GpiRadar = ({ scores }: { scores: SkillScore[] }) => {
+  const top = scores.slice(0, 5);
+  return (
+    <svg viewBox="0 0 240 240" className="mx-auto h-56 w-56">
+      {[32, 52, 72, 92].map((r) => <circle key={r} cx="120" cy="120" r={r} fill="none" stroke="#334155" strokeWidth="1" />)}
+      {top.map((_, i) => {
+        const angle = (Math.PI * 2 * i) / top.length - Math.PI / 2;
+        return <line key={`gpi-axis-${i}`} x1="120" y1="120" x2={120 + Math.cos(angle) * 92} y2={120 + Math.sin(angle) * 92} stroke="#334155" strokeWidth="1" />;
+      })}
+      <polygon
+        points={top.map((score, i) => {
+          const angle = (Math.PI * 2 * i) / top.length - Math.PI / 2;
+          const ratio = Math.max(0.2, Math.min(1, score.value / 100));
+          return `${120 + Math.cos(angle) * (ratio * 92)} ${120 + Math.sin(angle) * (ratio * 92)}`;
+        }).join(' ')}
+        fill="rgba(56,189,248,.25)"
+        stroke="#38bdf8"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+};
 
 const ProfileDashboard = ({
   analytics,
@@ -298,6 +320,10 @@ const ProfileDashboard = ({
     <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
       <Panel>
         <SectionHeading title="GPI" caption={`${analytics.games} partidas clasificatorias procesadas`} />
+        <div className="mb-4 rounded-lg border border-zinc-800 bg-black/20 p-3">
+          <p className="mb-2 text-xs uppercase tracking-wide text-zinc-500">Vista general estilo Mobalytics</p>
+          <GpiRadar scores={analytics.gpi} />
+        </div>
         <SkillBars scores={analytics.gpi} />
       </Panel>
 
@@ -1736,8 +1762,8 @@ export const App = () => {
   const [search, setSearch] = useState<SearchState | null>(null);
   const [activeView, setActiveView] = useState<ViewKey>(initialView);
   const [selectedChallenge, setSelectedChallenge] = useState('farm-10');
-  const [selectedReviewMatchId] = useState('');
   const [rankedQueue, setRankedQueue] = useState<RankedQueueKey>('solo');
+  const queryClient = useQueryClient();
 
   const dataDragonQuery = useQuery({
     queryKey: ['ddragon-version'],
@@ -1781,16 +1807,35 @@ export const App = () => {
     queryFn: () => riotApi.getRankedMatches(search!.region, summaryQuery.data!.puuid, rankedQueue, rankedMatchFetchCount),
     enabled: Boolean(search && summaryQuery.data?.puuid),
     staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 30,
+    placeholderData: keepPreviousData,
     retry: false
   });
 
   const championInsightsQuery = useQuery({
     queryKey: ['champion-insights', search, summaryQuery.data?.puuid, rankedQueue],
     queryFn: () => riotApi.getChampionInsights(search!.region, summaryQuery.data!.puuid, rankedQueue, insightMatchFetchCount),
-    enabled: Boolean(search && summaryQuery.data?.puuid && (activeView === 'tier' || activeView === 'builds')),
+    enabled: Boolean(search && summaryQuery.data?.puuid),
     staleTime: 1000 * 60 * 3,
+    gcTime: 1000 * 60 * 30,
+    placeholderData: keepPreviousData,
     retry: false
   });
+  useEffect(() => {
+    if (!search || !summaryQuery.data?.puuid) return;
+    (['solo', 'flex'] as RankedQueueKey[]).forEach((queue) => {
+      queryClient.prefetchQuery({
+        queryKey: ['ranked-matches', search, summaryQuery.data?.puuid, queue],
+        queryFn: () => riotApi.getRankedMatches(search.region, summaryQuery.data!.puuid, queue, rankedMatchFetchCount),
+        staleTime: 1000 * 60 * 2
+      });
+      queryClient.prefetchQuery({
+        queryKey: ['champion-insights', search, summaryQuery.data?.puuid, queue],
+        queryFn: () => riotApi.getChampionInsights(search.region, summaryQuery.data!.puuid, queue, insightMatchFetchCount),
+        staleTime: 1000 * 60 * 3
+      });
+    });
+  }, [queryClient, search, summaryQuery.data?.puuid]);
 
   const liveQuery = useQuery({
     queryKey: ['live', search, summaryQuery.data?.puuid],
@@ -1801,7 +1846,6 @@ export const App = () => {
   });
 
   const matches = useMemo(() => rankedMatchesQuery.data ?? [], [rankedMatchesQuery.data]);
-  const selectedReviewMatch = matches.find((match) => match.matchId === selectedReviewMatchId) ?? matches[0];
   const analytics = useMemo(() => buildAnalytics(summaryQuery.data, matches), [summaryQuery.data, matches]);
   const activeQueueLabel = rankedQueueOptions.find((option) => option.key === rankedQueue)?.label ?? 'Solo/Duo';
   const isLoading = summaryQuery.isLoading || rankedMatchesQuery.isLoading;
@@ -1879,19 +1923,31 @@ export const App = () => {
           ))}
         </nav>
         <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={() => {
-              summaryQuery.refetch();
-              rankedMatchesQuery.refetch();
-              championInsightsQuery.refetch();
-              liveQuery.refetch();
-              coachRecommendationsQuery.refetch();
-            }}
-            className="rounded-md border border-zinc-700 px-3 py-2 text-sm font-semibold text-zinc-200 transition hover:border-teal-300 hover:text-teal-200"
-          >
-            Refrescar datos
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSearch(null);
+                setSearchParams(new URLSearchParams({ view: activeView }));
+              }}
+              className="rounded-md border border-rose-700/60 px-3 py-2 text-sm font-semibold text-rose-200 transition hover:border-rose-400"
+            >
+              Limpiar búsqueda
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                summaryQuery.refetch();
+                rankedMatchesQuery.refetch();
+                championInsightsQuery.refetch();
+                liveQuery.refetch();
+                coachRecommendationsQuery.refetch();
+              }}
+              className="rounded-md border border-zinc-700 px-3 py-2 text-sm font-semibold text-zinc-200 transition hover:border-teal-300 hover:text-teal-200"
+            >
+              Refrescar datos
+            </button>
+          </div>
         </div>
 
         {!search && activeView === 'profile' && (
@@ -1950,21 +2006,16 @@ export const App = () => {
         {activeView === 'profile' && summaryQuery.data && (
           <div className="space-y-5">
             <ProfileDashboard analytics={analytics} matches={matches} version={version} championCatalog={championCatalog} />
-            <LpFlowChart matches={matches} ranked={summaryQuery.data.ranked} activeQueue={rankedQueue} />
             <section className="grid gap-4 lg:grid-cols-3">
               <div className="lg:col-span-2">
-                {matches.length > 0 ? (
-                  <div className="space-y-3">
+                <div className="space-y-4">
+                  <LpFlowChart matches={matches} ranked={summaryQuery.data.ranked} activeQueue={rankedQueue} />
+                  {matches.length > 0 ? (
                     <MatchHistoryTable matches={matches} dataDragonVersion={version} championCatalog={championCatalog} title={`Historial ${activeQueueLabel}`} region={search?.region} />
-                    <MatchReviewPanel
-                      match={selectedReviewMatch}
-                      championCatalog={championCatalog}
-                      baseline={{ damage: analytics.avgDamage, vision: analytics.avgVision, gold: analytics.avgGold, kp: analytics.avgKillParticipation }}
-                    />
-                  </div>
-                ) : (
+                  ) : (
                   <EmptyState title={`Sin partidas ${activeQueueLabel}`} description="No encontramos partidas clasificatorias cargadas para este jugador." />
-                )}
+                  )}
+                </div>
               </div>
               <div className="space-y-4">
                 <ChampionMasteryList mastery={summaryQuery.data.masteryTop} dataDragonVersion={version} championCatalog={championCatalog} />
@@ -1993,6 +2044,11 @@ export const App = () => {
         )}
         {activeView === 'builds' && (
           <div className="space-y-5">
+            {championInsightsQuery.isLoading && (
+              <Panel>
+                <p className="text-sm text-zinc-300">Cargando builds avanzadas y recomendaciones desde un mayor volumen de partidas...</p>
+              </Panel>
+            )}
             <ChampionBuildLab version={version} championCatalog={championCatalog} itemCatalog={itemCatalog} />
           </div>
         )}
