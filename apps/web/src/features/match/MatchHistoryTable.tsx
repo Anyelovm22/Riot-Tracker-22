@@ -75,9 +75,10 @@ export const MatchHistoryTable = ({
   return (
   <>
   <Card title={title}>
-    <div className="overflow-x-auto">
+    <p className="mb-4 text-sm text-zinc-400">Haz click en cualquier partida para ver un análisis completo y comparativas visuales.</p>
+    <div className="max-h-[520px] overflow-auto rounded-lg border border-zinc-800/80">
       <table className="min-w-full text-left text-sm">
-        <thead>
+        <thead className="sticky top-0 z-10 bg-zinc-950">
           <tr className="border-b border-zinc-800 text-zinc-400">
             <th className="py-2">Partida</th>
             <th>Cola</th>
@@ -94,7 +95,14 @@ export const MatchHistoryTable = ({
           {matches.map((match) => {
             const champion = championCatalog?.[match.championId];
             return (
-              <tr key={match.matchId} className="cursor-pointer border-b border-zinc-900 text-zinc-200 transition hover:bg-zinc-900/40" onClick={() => setSelectedMatchId(match.matchId)}>
+              <tr
+                key={match.matchId}
+                className={clsx(
+                  'cursor-pointer border-b border-zinc-900 text-zinc-200 transition hover:bg-zinc-900/40',
+                  selectedMatchId === match.matchId && 'bg-cyan-900/20 ring-1 ring-inset ring-cyan-500/40'
+                )}
+                onClick={() => setSelectedMatchId(match.matchId)}
+              >
                 <td className="py-2">
                   <div className="font-semibold">{match.matchId.slice(-8)}</div>
                   <div className="text-xs text-zinc-500">{formatDuration(match.gameDurationSeconds)}</div>
@@ -138,8 +146,7 @@ export const MatchHistoryTable = ({
     </div>
   </Card>
   {selectedMatch && averages && (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4">
-      <div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-cyan-500/35 bg-gradient-to-b from-[#08122d] to-[#060b1d] p-5 shadow-2xl shadow-cyan-900/20">
+      <div className="mt-5 overflow-hidden rounded-2xl border border-cyan-500/35 bg-gradient-to-b from-[#11193d] via-[#0d1434] to-[#0a1028] p-5 shadow-2xl shadow-cyan-900/20">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-cyan-300">Desglose profesional de partida</p>
@@ -147,11 +154,12 @@ export const MatchHistoryTable = ({
           </div>
           <button type="button" onClick={() => setSelectedMatchId('')} className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200 hover:border-zinc-500">Cerrar</button>
         </div>
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-5">
           <div className="rounded-md border border-zinc-800 bg-black/20 p-3"><p className="text-xs text-zinc-500">KDA</p><p className="text-2xl font-bold text-white">{selectedMatch.kills}/{selectedMatch.deaths}/{selectedMatch.assists}</p></div>
           <div className="rounded-md border border-zinc-800 bg-black/20 p-3"><p className="text-xs text-zinc-500">Resultado</p><p className={clsx('text-2xl font-bold', selectedMatch.win ? 'text-emerald-300' : 'text-rose-300')}>{selectedMatch.win ? 'Victoria' : 'Derrota'}</p></div>
           <div className="rounded-md border border-zinc-800 bg-black/20 p-3"><p className="text-xs text-zinc-500">Objetivos</p><p className="text-2xl font-bold text-white">{selectedMatch.objectiveTakedowns}</p></div>
           <div className="rounded-md border border-zinc-800 bg-black/20 p-3"><p className="text-xs text-zinc-500">Tiempo muerto</p><p className="text-2xl font-bold text-white">{Math.round(selectedMatch.totalTimeSpentDead / 60)}m</p></div>
+          <div className="rounded-md border border-zinc-800 bg-black/20 p-3"><p className="text-xs text-zinc-500">Daño/min</p><p className="text-2xl font-bold text-white">{selectedMatch.damagePerMinute.toFixed(0)}</p></div>
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           {renderComparison('CS/min', selectedMatch.csPerMinute, averages.cs)}
@@ -186,6 +194,9 @@ export const MatchHistoryTable = ({
             </ol>
           </div>
         </div>
+        {matchDetailQuery.isLoading && (
+          <div className="mt-5 rounded-lg border border-zinc-700/80 bg-zinc-900/40 p-4 text-sm text-zinc-300">Cargando información avanzada de equipos...</div>
+        )}
         {matchDetailQuery.data && (
           <div className="mt-5 space-y-4">
             <div className="grid gap-3 md:grid-cols-3">
@@ -220,8 +231,12 @@ export const MatchHistoryTable = ({
             </div>
           </div>
         )}
+        {matchDetailQuery.isError && (
+          <div className="mt-5 rounded-lg border border-amber-500/40 bg-amber-900/20 p-4 text-sm text-amber-200">
+            No pudimos cargar el detalle extendido de esta partida en este momento. Intenta nuevamente.
+          </div>
+        )}
       </div>
-    </div>
   )}
   </>
 );

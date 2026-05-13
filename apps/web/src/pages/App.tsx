@@ -49,8 +49,8 @@ const navItems: { key: ViewKey; label: string }[] = [
   { key: 'guides', label: 'Guides' }
 ];
 
-const rankedMatchFetchCount = 70;
-const insightMatchFetchCount = 140;
+const rankedMatchFetchCount = 140;
+const insightMatchFetchCount = 260;
 
 const rankedQueueOptions: { key: RankedQueueKey; label: string; shortLabel: string }[] = [
   { key: 'solo', label: 'Solo/Duo', shortLabel: 'SoloQ' },
@@ -1736,7 +1736,6 @@ export const App = () => {
   const [search, setSearch] = useState<SearchState | null>(null);
   const [activeView, setActiveView] = useState<ViewKey>(initialView);
   const [selectedChallenge, setSelectedChallenge] = useState('farm-10');
-  const [selectedReviewMatchId] = useState('');
   const [rankedQueue, setRankedQueue] = useState<RankedQueueKey>('solo');
 
   const dataDragonQuery = useQuery({
@@ -1801,7 +1800,6 @@ export const App = () => {
   });
 
   const matches = useMemo(() => rankedMatchesQuery.data ?? [], [rankedMatchesQuery.data]);
-  const selectedReviewMatch = matches.find((match) => match.matchId === selectedReviewMatchId) ?? matches[0];
   const analytics = useMemo(() => buildAnalytics(summaryQuery.data, matches), [summaryQuery.data, matches]);
   const activeQueueLabel = rankedQueueOptions.find((option) => option.key === rankedQueue)?.label ?? 'Solo/Duo';
   const isLoading = summaryQuery.isLoading || rankedMatchesQuery.isLoading;
@@ -1950,21 +1948,16 @@ export const App = () => {
         {activeView === 'profile' && summaryQuery.data && (
           <div className="space-y-5">
             <ProfileDashboard analytics={analytics} matches={matches} version={version} championCatalog={championCatalog} />
-            <LpFlowChart matches={matches} ranked={summaryQuery.data.ranked} activeQueue={rankedQueue} />
             <section className="grid gap-4 lg:grid-cols-3">
               <div className="lg:col-span-2">
-                {matches.length > 0 ? (
-                  <div className="space-y-3">
+                <div className="space-y-4">
+                  <LpFlowChart matches={matches} ranked={summaryQuery.data.ranked} activeQueue={rankedQueue} />
+                  {matches.length > 0 ? (
                     <MatchHistoryTable matches={matches} dataDragonVersion={version} championCatalog={championCatalog} title={`Historial ${activeQueueLabel}`} region={search?.region} />
-                    <MatchReviewPanel
-                      match={selectedReviewMatch}
-                      championCatalog={championCatalog}
-                      baseline={{ damage: analytics.avgDamage, vision: analytics.avgVision, gold: analytics.avgGold, kp: analytics.avgKillParticipation }}
-                    />
-                  </div>
-                ) : (
+                  ) : (
                   <EmptyState title={`Sin partidas ${activeQueueLabel}`} description="No encontramos partidas clasificatorias cargadas para este jugador." />
-                )}
+                  )}
+                </div>
               </div>
               <div className="space-y-4">
                 <ChampionMasteryList mastery={summaryQuery.data.masteryTop} dataDragonVersion={version} championCatalog={championCatalog} />
@@ -1993,6 +1986,11 @@ export const App = () => {
         )}
         {activeView === 'builds' && (
           <div className="space-y-5">
+            {championInsightsQuery.isLoading && (
+              <Panel>
+                <p className="text-sm text-zinc-300">Cargando builds avanzadas y recomendaciones desde un mayor volumen de partidas...</p>
+              </Panel>
+            )}
             <ChampionBuildLab version={version} championCatalog={championCatalog} itemCatalog={itemCatalog} />
           </div>
         )}
