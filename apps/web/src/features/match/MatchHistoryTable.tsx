@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { Card } from '../../components/Card';
 import { ChampionCatalogMap, championIconUrl, itemIconUrl } from '../../services/dataDragon';
+import { riotApi } from '../../services/riotApi';
 import { MatchOverview } from '../../types/api';
 
 const formatDuration = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
@@ -16,12 +18,14 @@ export const MatchHistoryTable = ({
   matches,
   dataDragonVersion,
   championCatalog,
-  title = 'Historial reciente'
+  title = 'Historial reciente',
+  region
 }: {
   matches: MatchOverview[];
   dataDragonVersion?: string;
   championCatalog?: ChampionCatalogMap;
   title?: string;
+  region?: string;
 }) => {
   const [selectedMatchId, setSelectedMatchId] = useState<string>('');
   const selectedMatch = useMemo(() => matches.find((match) => match.matchId === selectedMatchId) ?? null, [matches, selectedMatchId]);
@@ -35,6 +39,12 @@ export const MatchHistoryTable = ({
       gpm: matches.reduce((sum, row) => sum + row.goldPerMinute, 0) / matches.length
     };
   }, [matches]);
+  const matchDetailQuery = useQuery({
+    queryKey: ['match-detail', region, selectedMatchId],
+    queryFn: () => riotApi.getMatchDetail(region!, selectedMatchId),
+    enabled: Boolean(region && selectedMatchId),
+    staleTime: 1000 * 60 * 3
+  });
 
   const renderComparison = (label: string, value: number, avg: number, suffix = '', max = 100) => {
     const safeAvg = avg <= 0 ? 1 : avg;
@@ -176,6 +186,42 @@ export const MatchHistoryTable = ({
             </ol>
           </div>
         </div>
+        {matchDetailQuery.isFetching && <p className="mt-4 text-sm text-zinc-400">Cargando desglose completo de ambos equipos...</p>}
+        {matchDetailQuery.error && <p className="mt-4 text-sm text-rose-300">No se pudo cargar el detalle completo de la partida.</p>}
+        {matchDetailQuery.data && (
+          <div className="mt-5 space-y-4">
+            <div className="grid gap-3 md:grid-cols-3">
+              {matchDetailQuery.data.teams.map((team) => (
+                <div key={team.teamId} className="rounded-md border border-zinc-800 bg-black/20 p-3">
+                  <p className="text-xs text-zinc-500">Team {team.teamId}</p>
+                  <p className={clsx('text-lg font-bold', team.win ? 'text-emerald-300' : 'text-rose-300')}>{team.win ? 'Victoria' : 'Derrota'}</p>
+                  <p className="text-sm text-zinc-300">Kills: {team.totalKills} · Gold: {team.totalGold} · Damage: {team.totalDamage}</p>
+                </div>
+              ))}
+            </div>
+            <div className="grid gap-4 xl:grid-cols-2">
+              {matchDetailQuery.data.teams.map((team) => (
+                <div key={`players-${team.teamId}`} className="rounded-md border border-zinc-800 bg-black/20 p-3">
+                  <p className="mb-2 text-sm font-semibold text-zinc-200">Team {team.teamId} · jugadores y líneas</p>
+                  <div className="space-y-2">
+                    {team.participants.map((player) => (
+                      <div key={player.puuid} className="flex items-center justify-between rounded border border-zinc-800 px-2 py-1">
+                        <div className="flex items-center gap-2">
+                          <img src={championIconUrl(dataDragonVersion, championCatalog?.[player.championId]?.id ?? player.championName)} alt="" className="h-8 w-8 rounded" />
+                          <div>
+                            <p className="text-xs text-zinc-100">{player.gameName}{player.tagLine ? `#${player.tagLine}` : ''}</p>
+                            <p className="text-xs text-zinc-500">{player.teamPosition || player.lane}</p>
+                          </div>
+                        </div>
+                        <p className="text-xs text-zinc-300">{player.kills}/{player.deaths}/{player.assists}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )}

@@ -59,14 +59,14 @@ const regionOptions = [
 const fastGlobalRegions = ['kr', 'euw1', 'na1', 'br1', 'la1', 'la2'];
 const buildRequestProfiles = {
   global: {
-    playerLimit: 8,
-    matchesPerPlayer: 5,
-    championMatchLimit: 28
+    playerLimit: 14,
+    matchesPerPlayer: 8,
+    championMatchLimit: 80
   },
   regional: {
-    playerLimit: 12,
-    matchesPerPlayer: 6,
-    championMatchLimit: 36
+    playerLimit: 18,
+    matchesPerPlayer: 9,
+    championMatchLimit: 120
   }
 };
 
@@ -525,6 +525,7 @@ export const ChampionBuildLab = ({ version, championCatalog, itemCatalog }: Cham
   const [sourceTier, setSourceTier] = useState<EliteLeagueTier>('challenger');
   const [championId, setChampionId] = useState('');
   const [selectedVariantId, setSelectedVariantId] = useState('');
+  const [enemyChampionId, setEnemyChampionId] = useState('');
 
   const championOptions = useMemo(
     () =>
@@ -537,6 +538,7 @@ export const ChampionBuildLab = ({ version, championCatalog, itemCatalog }: Cham
     [championCatalog]
   );
   const championSelectOptions = useMemo(() => [{ value: '', label: 'Selecciona campeon' }, ...championOptions], [championOptions]);
+  const enemyChampionOptions = useMemo(() => [{ value: '', label: 'Cualquier matchup' }, ...championOptions], [championOptions]);
 
   const selectedChampion = championId ? championCatalog?.[Number(championId)] : undefined;
   const requestProfile = region === 'global' ? buildRequestProfiles.global : buildRequestProfiles.regional;
@@ -603,6 +605,10 @@ export const ChampionBuildLab = ({ version, championCatalog, itemCatalog }: Cham
 
   const data = buildsQuery.data;
   const variants = useMemo(() => data?.variants ?? [], [data?.variants]);
+  const filteredRecentMatches = useMemo(() => {
+    if (!data?.recentMatches?.length || !enemyChampionId) return data?.recentMatches ?? [];
+    return data.recentMatches.filter((match) => match.matchId.includes(enemyChampionId));
+  }, [data?.recentMatches, enemyChampionId]);
   const activeVariant = variants.find((variant) => variant.id === selectedVariantId) ?? variants[0];
   const bestWinVariant = useMemo(() => [...variants].sort((a, b) => b.winRate - a.winRate || b.games - a.games)[0], [variants]);
   const mostPopularVariant = variants[0];
@@ -640,8 +646,9 @@ export const ChampionBuildLab = ({ version, championCatalog, itemCatalog }: Cham
             <StatusPill label="Muestra" value={`max ${requestProfile.championMatchLimit} games`} tone="amber" />
           </div>
         </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1.4fr_0.7fr_0.7fr_0.8fr_0.8fr]">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1.3fr_0.9fr_0.7fr_0.7fr_0.8fr_0.8fr]">
           <Select label="Campeon" value={championId} onChange={setChampionId} options={championSelectOptions} />
+          <Select label="Vs enemigo" value={enemyChampionId} onChange={setEnemyChampionId} options={enemyChampionOptions} />
           <Select label="Alcance" value={region} onChange={setRegion} options={regionOptions} />
           <Select label="Cola" value={queue} onChange={(value) => setQueue(value as RankedQueueKey)} options={queueOptions} />
           <Select label="Rol" value={role} onChange={(value) => setRole(value as ChampionRole | 'ALL')} options={roleOptions} />
@@ -764,14 +771,12 @@ export const ChampionBuildLab = ({ version, championCatalog, itemCatalog }: Cham
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
                     <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-300">Build ranking</h3>
-                    <p className="mt-1 text-sm text-zinc-500">
-                      {data.sample.totalMatchesScanned} matches escaneados, {data.sample.playersScanned} jugadores, {data.requested.regions.length} regiones
-                    </p>
+                    <p className="mt-1 text-sm text-zinc-500">{data.sample.totalMatchesScanned} matches escaneados, {data.sample.playersScanned} jugadores, {data.requested.regions.length} regiones</p>
                   </div>
                   <span className="rounded-md bg-teal-500/10 px-2 py-1 text-xs font-semibold text-teal-200">{data.sourceTier}</span>
                 </div>
                 <div className="space-y-2">
-                  {variants.map((variant) => (
+                  {variants.slice(0, 12).map((variant) => (
                     <VariantButton
                       key={variant.id}
                       variant={variant}
@@ -871,7 +876,7 @@ export const ChampionBuildLab = ({ version, championCatalog, itemCatalog }: Cham
             <Panel>
               <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-300">Partidas recientes detectadas</h3>
               <div className="grid gap-2 md:grid-cols-2">
-                {data.recentMatches.slice(0, 6).map((match) => (
+                {filteredRecentMatches.slice(0, 12).map((match) => (
                   <div key={match.matchId} className="rounded-md border border-zinc-800 bg-black/25 p-3">
                     <div className="mb-2 flex items-center justify-between gap-3">
                       <p className="font-semibold text-white">

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
+import { useSearchParams } from 'react-router-dom';
 import { EmptyState } from '../components/EmptyState';
 import { ErrorState } from '../components/ErrorState';
 import { MetricCard } from '../components/MetricCard';
@@ -525,6 +526,7 @@ const TierPanel = ({
       return b.score - a.score || b.confidence - a.confidence;
     });
   const selectedRow = filteredRows.find((row) => `${row.championId}-${row.role}` === selectedChampionKey) ?? filteredRows[0];
+  const selectedBuild = insights?.builds.find((build) => build.championId === selectedRow?.championId && build.role === selectedRow?.role);
   const selectedChampion = selectedRow ? getChampion(championCatalog, selectedRow.championId, selectedRow.championName) : undefined;
   const expandedRow = filteredRows.find((row) => `${row.championId}-${row.role}` === expandedChampionKey);
   const expandedChampion = expandedRow ? getChampion(championCatalog, expandedRow.championId, expandedRow.championName) : undefined;
@@ -535,6 +537,16 @@ const TierPanel = ({
         score: rolePool.reduce((sum, row) => sum + row.score, 0) / rolePool.length,
         confidence: rolePool.reduce((sum, row) => sum + row.confidence, 0) / rolePool.length,
         pickRate: rolePool.reduce((sum, row) => sum + row.pickRate, 0) / rolePool.length
+      }
+    : null;
+  const roleBuilds = (insights?.builds ?? []).filter((build) => selectedRow && build.role === selectedRow.role);
+  const roleBuildAverages = roleBuilds.length
+    ? {
+        avgDamage: roleBuilds.reduce((sum, build) => sum + build.avgDamage, 0) / roleBuilds.length,
+        avgVision: roleBuilds.reduce((sum, build) => sum + build.avgVision, 0) / roleBuilds.length,
+        avgGold: roleBuilds.reduce((sum, build) => sum + build.avgGold, 0) / roleBuilds.length,
+        avgCs: roleBuilds.reduce((sum, build) => sum + build.avgCs, 0) / roleBuilds.length,
+        avgKillParticipation: roleBuilds.reduce((sum, build) => sum + build.avgKillParticipation, 0) / roleBuilds.length
       }
     : null;
 
@@ -617,6 +629,30 @@ const TierPanel = ({
                   ? `Es viable pero exige ejecución: buen score (${formatDecimal(selectedRow.score)}) con margen de error moderado.`
                   : `Sé sincero contigo: hoy no es pick estable para rankeds (${formatDecimal(selectedRow.winRate)}% WR).`}
             </p>
+            {selectedBuild && roleBuildAverages && (
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
+                  <p className="text-xs uppercase tracking-wide text-zinc-500">Damage ({formatDecimal(selectedBuild.avgDamage, 0)})</p>
+                  <ProgressBar value={(selectedBuild.avgDamage / Math.max(1, roleBuildAverages.avgDamage)) * 100} tone={selectedBuild.avgDamage >= roleBuildAverages.avgDamage ? 'emerald' : 'rose'} />
+                </div>
+                <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
+                  <p className="text-xs uppercase tracking-wide text-zinc-500">Vision ({formatDecimal(selectedBuild.avgVision, 1)})</p>
+                  <ProgressBar value={(selectedBuild.avgVision / Math.max(1, roleBuildAverages.avgVision)) * 100} tone={selectedBuild.avgVision >= roleBuildAverages.avgVision ? 'emerald' : 'amber'} />
+                </div>
+                <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
+                  <p className="text-xs uppercase tracking-wide text-zinc-500">Oro/min ({formatDecimal(selectedBuild.avgGold, 0)})</p>
+                  <ProgressBar value={(selectedBuild.avgGold / Math.max(1, roleBuildAverages.avgGold)) * 100} tone={selectedBuild.avgGold >= roleBuildAverages.avgGold ? 'teal' : 'rose'} />
+                </div>
+                <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
+                  <p className="text-xs uppercase tracking-wide text-zinc-500">CS/min ({formatDecimal(selectedBuild.avgCs, 2)})</p>
+                  <ProgressBar value={(selectedBuild.avgCs / Math.max(1, roleBuildAverages.avgCs)) * 100} tone={selectedBuild.avgCs >= roleBuildAverages.avgCs ? 'teal' : 'amber'} />
+                </div>
+                <div className="rounded-md border border-zinc-800 bg-black/20 p-3 md:col-span-2">
+                  <p className="text-xs uppercase tracking-wide text-zinc-500">KP ({formatDecimal(selectedBuild.avgKillParticipation, 1)}%)</p>
+                  <ProgressBar value={(selectedBuild.avgKillParticipation / Math.max(1, roleBuildAverages.avgKillParticipation)) * 100} tone={selectedBuild.avgKillParticipation >= roleBuildAverages.avgKillParticipation ? 'emerald' : 'rose'} />
+                </div>
+              </div>
+            )}
           </div>
         )}
         <div className="overflow-x-auto">
@@ -1655,9 +1691,68 @@ const GuidesPanel = ({
   );
 };
 
+const ChampionRecommendationPanel = ({
+  insights,
+  championCatalog,
+  version
+}: {
+  insights?: ChampionInsightsResponse;
+  championCatalog?: ChampionCatalogMap;
+  version?: string;
+}) => {
+  const tierRows = insights?.tierList ?? [];
+  const strong = tierRows.filter((row) => row.games >= 3).sort((a, b) => b.score - a.score).slice(0, 5);
+  const weak = tierRows.filter((row) => row.games >= 3).sort((a, b) => a.score - b.score).slice(0, 5);
+  const renderRows = (rows: typeof tierRows, emptyText: string, tone: 'emerald' | 'rose') => {
+    if (rows.length === 0) {
+      return <p className="text-sm text-zinc-500">{emptyText}</p>;
+    }
+    return (
+      <div className="space-y-2">
+        {rows.map((row) => {
+          const champion = championCatalog?.[row.championId];
+          return (
+            <div key={`${row.championId}-${row.role}`} className="flex items-center justify-between rounded-md border border-zinc-800 bg-black/20 p-2">
+              <div className="flex items-center gap-2">
+                <ChampionAvatar championKey={champion?.id ?? row.championName} name={champion?.name ?? row.championName} version={version} className="h-9 w-9" />
+                <div>
+                  <p className="text-sm font-semibold text-zinc-100">{champion?.name ?? row.championName}</p>
+                  <p className="text-xs text-zinc-500">{roleLabels[row.role]} · {row.games} partidas</p>
+                </div>
+              </div>
+              <span className={clsx('text-xs font-semibold', tone === 'emerald' ? 'text-emerald-300' : 'text-rose-300')}>{row.winRate.toFixed(1)}%</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  return (
+    <Panel>
+      <SectionHeading title="Pool recomendado" caption="Qué campeones priorizar o evitar basado en tu rendimiento reciente." />
+      <div className="space-y-4">
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-300">Deberías jugar</p>
+          {renderRows(strong, 'Sin datos suficientes para recomendar picks.', 'emerald')}
+        </div>
+        <div className="border-t border-zinc-800 pt-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-rose-300">Mejor evita por ahora</p>
+          {renderRows(weak, 'Sin datos suficientes para evitar picks.', 'rose')}
+        </div>
+      </div>
+    </Panel>
+  );
+};
+
 export const App = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialRegion = searchParams.get('region') ?? 'na1';
+  const initialGameName = searchParams.get('gameName') ?? '';
+  const initialTagLine = searchParams.get('tagLine') ?? '';
+  const initialView = (searchParams.get('view') as ViewKey | null) ?? 'profile';
   const [search, setSearch] = useState<SearchState | null>(null);
-  const [activeView, setActiveView] = useState<ViewKey>('profile');
+  const [activeView, setActiveView] = useState<ViewKey>(initialView);
   const [selectedChallenge, setSelectedChallenge] = useState('farm-10');
   const [selectedReviewMatchId, setSelectedReviewMatchId] = useState('');
   const [rankedQueue, setRankedQueue] = useState<RankedQueueKey>('solo');
@@ -1762,19 +1857,60 @@ export const App = () => {
   });
 
   const aiCoachError = (coachRecommendationsQuery.error as Error)?.message;
+  useEffect(() => {
+    if (!initialGameName || !initialTagLine) return;
+    setSearch({ region: initialRegion, gameName: initialGameName, tagLine: initialTagLine });
+  }, [initialGameName, initialRegion, initialTagLine]);
+
+  const updateUrl = (nextSearch: SearchState | null, nextView: ViewKey) => {
+    const params = new URLSearchParams();
+    params.set('view', nextView);
+    if (nextSearch) {
+      params.set('region', nextSearch.region);
+      params.set('gameName', nextSearch.gameName);
+      params.set('tagLine', nextSearch.tagLine);
+    }
+    setSearchParams(params, { replace: true });
+  };
 
   return (
     <MainLayout>
       <div className="space-y-5">
-        <SearchBar onSearch={setSearch} isLoading={summaryQuery.isFetching} />
+        <SearchBar
+          onSearch={(next) => {
+            setSearch(next);
+            updateUrl(next, activeView);
+          }}
+          isLoading={summaryQuery.isFetching}
+          initialRegion={initialRegion}
+          initialRiotId={initialGameName && initialTagLine ? `${initialGameName}#${initialTagLine}` : ''}
+        />
 
         <nav className="flex gap-2 overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950/65 p-2">
           {navItems.map((item) => (
-            <TabButton key={item.key} active={activeView === item.key} onClick={() => setActiveView(item.key)}>
+            <TabButton key={item.key} active={activeView === item.key} onClick={() => {
+              setActiveView(item.key);
+              updateUrl(search, item.key);
+            }}>
               {item.label}
             </TabButton>
           ))}
         </nav>
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              summaryQuery.refetch();
+              rankedMatchesQuery.refetch();
+              championInsightsQuery.refetch();
+              liveQuery.refetch();
+              coachRecommendationsQuery.refetch();
+            }}
+            className="rounded-md border border-zinc-700 px-3 py-2 text-sm font-semibold text-zinc-200 transition hover:border-teal-300 hover:text-teal-200"
+          >
+            Refrescar datos
+          </button>
+        </div>
 
         {!search && activeView === 'profile' && (
           <div className="grid gap-4 lg:grid-cols-4">
@@ -1837,7 +1973,7 @@ export const App = () => {
               <div className="lg:col-span-2">
                 {matches.length > 0 ? (
                   <div className="space-y-3">
-                    <MatchHistoryTable matches={matches} dataDragonVersion={version} championCatalog={championCatalog} title={`Historial ${activeQueueLabel}`} />
+                    <MatchHistoryTable matches={matches} dataDragonVersion={version} championCatalog={championCatalog} title={`Historial ${activeQueueLabel}`} region={search?.region} />
                     <MatchReviewPanel
                       match={selectedReviewMatch}
                       championCatalog={championCatalog}
@@ -1848,7 +1984,10 @@ export const App = () => {
                   <EmptyState title={`Sin partidas ${activeQueueLabel}`} description="No encontramos partidas clasificatorias cargadas para este jugador." />
                 )}
               </div>
-              <ChampionMasteryList mastery={summaryQuery.data.masteryTop} dataDragonVersion={version} championCatalog={championCatalog} />
+              <div className="space-y-4">
+                <ChampionMasteryList mastery={summaryQuery.data.masteryTop} dataDragonVersion={version} championCatalog={championCatalog} />
+                <ChampionRecommendationPanel insights={championInsightsQuery.data} championCatalog={championCatalog} version={version} />
+              </div>
             </section>
             <RankedTable ranked={summaryQuery.data.ranked} activeQueue={rankedQueue} />
           </div>
