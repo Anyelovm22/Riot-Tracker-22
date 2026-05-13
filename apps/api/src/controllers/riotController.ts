@@ -148,6 +148,11 @@ export const riotController = {
 
   async match(req: Request, res: Response) {
     const { region, matchId } = req.params;
+    if (req.query.detail === 'full') {
+      const detail = await riotService.getMatchDetail(parseRegion(region), matchId);
+      res.json(detail);
+      return;
+    }
     const puuid = typeof req.query.puuid === 'string' ? req.query.puuid : undefined;
     const match = await riotService.getMatch(parseRegion(region), matchId, puuid);
     res.json(match);
