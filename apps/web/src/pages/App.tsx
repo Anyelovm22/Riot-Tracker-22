@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useSearchParams } from 'react-router-dom';
 import { EmptyState } from '../components/EmptyState';
@@ -49,8 +49,8 @@ const navItems: { key: ViewKey; label: string }[] = [
   { key: 'guides', label: 'Guides' }
 ];
 
-const rankedMatchFetchCount = 140;
-const insightMatchFetchCount = 260;
+const rankedMatchFetchCount = 80;
+const insightMatchFetchCount = 120;
 
 const rankedQueueOptions: { key: RankedQueueKey; label: string; shortLabel: string }[] = [
   { key: 'solo', label: 'Solo/Duo', shortLabel: 'SoloQ' },
@@ -1759,11 +1759,11 @@ export const App = () => {
   const initialGameName = searchParams.get('gameName') ?? '';
   const initialTagLine = searchParams.get('tagLine') ?? '';
   const initialView = (searchParams.get('view') as ViewKey | null) ?? 'profile';
+  const initialQueue = (searchParams.get('queue') as RankedQueueKey | null) ?? 'solo';
   const [search, setSearch] = useState<SearchState | null>(null);
   const [activeView, setActiveView] = useState<ViewKey>(initialView);
   const [selectedChallenge, setSelectedChallenge] = useState('farm-10');
-  const [rankedQueue, setRankedQueue] = useState<RankedQueueKey>('solo');
-  const queryClient = useQueryClient();
+  const [rankedQueue, setRankedQueue] = useState<RankedQueueKey>(initialQueue === 'flex' ? 'flex' : 'solo');
 
   const dataDragonQuery = useQuery({
     queryKey: ['ddragon-version'],
@@ -1808,7 +1808,6 @@ export const App = () => {
     enabled: Boolean(search && summaryQuery.data?.puuid),
     staleTime: 1000 * 60 * 2,
     gcTime: 1000 * 60 * 30,
-    placeholderData: keepPreviousData,
     retry: false
   });
 
@@ -1818,24 +1817,8 @@ export const App = () => {
     enabled: Boolean(search && summaryQuery.data?.puuid),
     staleTime: 1000 * 60 * 3,
     gcTime: 1000 * 60 * 30,
-    placeholderData: keepPreviousData,
     retry: false
   });
-  useEffect(() => {
-    if (!search || !summaryQuery.data?.puuid) return;
-    (['solo', 'flex'] as RankedQueueKey[]).forEach((queue) => {
-      queryClient.prefetchQuery({
-        queryKey: ['ranked-matches', search, summaryQuery.data?.puuid, queue],
-        queryFn: () => riotApi.getRankedMatches(search.region, summaryQuery.data!.puuid, queue, rankedMatchFetchCount),
-        staleTime: 1000 * 60 * 2
-      });
-      queryClient.prefetchQuery({
-        queryKey: ['champion-insights', search, summaryQuery.data?.puuid, queue],
-        queryFn: () => riotApi.getChampionInsights(search.region, summaryQuery.data!.puuid, queue, insightMatchFetchCount),
-        staleTime: 1000 * 60 * 3
-      });
-    });
-  }, [queryClient, search, summaryQuery.data?.puuid]);
 
   const liveQuery = useQuery({
     queryKey: ['live', search, summaryQuery.data?.puuid],
@@ -1846,7 +1829,7 @@ export const App = () => {
   });
 
   const matches = useMemo(() => rankedMatchesQuery.data ?? [], [rankedMatchesQuery.data]);
-  const analytics = useMemo(() => buildAnalytics(summaryQuery.data, matches), [summaryQuery.data, matches]);
+  const analytics = useMemo(() => buildAnalytics(matches.length > 0 ? summaryQuery.data : undefined, matches), [summaryQuery.data, matches]);
   const activeQueueLabel = rankedQueueOptions.find((option) => option.key === rankedQueue)?.label ?? 'Solo/Duo';
   const isLoading = summaryQuery.isLoading || rankedMatchesQuery.isLoading;
   const mainError = (summaryQuery.error as Error)?.message || (rankedMatchesQuery.error as Error)?.message;
@@ -1888,10 +1871,11 @@ export const App = () => {
     setSearch({ region: initialRegion, gameName: initialGameName, tagLine: initialTagLine });
   }, [initialGameName, initialRegion, initialTagLine]);
 
-  const updateUrl = (nextSearch: SearchState | null, nextView: ViewKey) => {
+  const updateUrl = (nextSearch: SearchState | null, nextView: ViewKey, nextQueue: RankedQueueKey) => {
     const params = new URLSearchParams();
     params.set('view', nextView);
     if (nextSearch) {
+      params.set('queue', nextQueue);
       params.set('region', nextSearch.region);
       params.set('gameName', nextSearch.gameName);
       params.set('tagLine', nextSearch.tagLine);
@@ -1905,7 +1889,7 @@ export const App = () => {
         <SearchBar
           onSearch={(next) => {
             setSearch(next);
-            updateUrl(next, activeView);
+            updateUrl(next, activeView, rankedQueue);
           }}
           isLoading={summaryQuery.isFetching}
           initialRegion={initialRegion}
@@ -1916,7 +1900,7 @@ export const App = () => {
           {navItems.map((item) => (
             <TabButton key={item.key} active={activeView === item.key} onClick={() => {
               setActiveView(item.key);
-              updateUrl(search, item.key);
+              updateUrl(search, item.key, rankedQueue);
             }}>
               {item.label}
             </TabButton>
@@ -1986,7 +1970,10 @@ export const App = () => {
                 </div>
                 <div className="flex gap-2">
                   {rankedQueueOptions.map((option) => (
-                    <TabButton key={option.key} active={rankedQueue === option.key} onClick={() => setRankedQueue(option.key)}>
+                    <TabButton key={option.key} active={rankedQueue === option.key} onClick={() => {
+                      setRankedQueue(option.key);
+                      updateUrl(search, activeView, option.key);
+                    }}>
                       {option.shortLabel}
                     </TabButton>
                   ))}
