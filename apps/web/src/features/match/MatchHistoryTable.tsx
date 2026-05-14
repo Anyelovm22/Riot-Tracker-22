@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { Card } from '../../components/Card';
 import { ChampionCatalogMap, championIconUrl, itemIconUrl } from '../../services/dataDragon';
@@ -37,6 +37,7 @@ export const MatchHistoryTable = ({
   region?: string;
 }) => {
   const [selectedMatchId, setSelectedMatchId] = useState<string>('');
+  const queryClient = useQueryClient();
   const selectedMatch = useMemo(() => matches.find((match) => match.matchId === selectedMatchId) ?? null, [matches, selectedMatchId]);
   const averages = useMemo(() => {
     if (matches.length === 0) return null;
@@ -55,11 +56,31 @@ export const MatchHistoryTable = ({
     staleTime: 1000 * 60 * 3
   });
 
+
+  useEffect(() => {
+    if (!selectedMatchId) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSelectedMatchId('');
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedMatchId]);
+
   const renderComparison = (label: string, value: number, avg: number, suffix = '', max = 100) => {
     const safeAvg = avg <= 0 ? 1 : avg;
     const ratio = Math.max(0, Math.min(180, (value / safeAvg) * 100));
     const tone = value >= avg ? 'bg-emerald-400' : 'bg-rose-400';
-    return (
+  
+
+  const prefetchMatchDetail = (matchId: string) => {
+    if (!region) return;
+    queryClient.prefetchQuery({
+      queryKey: ['match-detail', region, matchId],
+      queryFn: () => riotApi.getMatchDetail(region, matchId),
+      staleTime: 1000 * 60 * 3
+    });
+  };
+  return (
       <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
         <div className="mb-2 flex items-center justify-between text-xs text-zinc-400">
           <span>{label}</span>
@@ -119,6 +140,7 @@ export const MatchHistoryTable = ({
                   'cursor-pointer border-b border-zinc-900 text-zinc-200 transition hover:bg-zinc-900/40',
                   selectedMatchId === match.matchId && 'bg-cyan-900/20 ring-1 ring-inset ring-cyan-500/40'
                 )}
+                onMouseEnter={() => prefetchMatchDetail(match.matchId)}
                 onClick={() => setSelectedMatchId(match.matchId)}
               >
                 <td className="py-2">
@@ -164,7 +186,7 @@ export const MatchHistoryTable = ({
     </div>
   </Card>
   {selectedMatch && averages && createPortal(
-      <div className="fixed inset-0 z-50 overflow-y-auto bg-[#02061a]/95 p-4">
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-black/65 p-4 backdrop-blur-[2px]">
       <div className="mx-auto max-w-7xl overflow-hidden rounded-2xl border border-cyan-500/35 bg-gradient-to-b from-[#11193d] via-[#0d1434] to-[#0a1028] p-5 shadow-2xl shadow-cyan-900/20">
         <div className="mb-4 flex items-center justify-between">
           <div>
@@ -238,7 +260,7 @@ export const MatchHistoryTable = ({
           </div>
         </div>
         {matchDetailQuery.isLoading && (
-          <div className="mt-5 rounded-lg border border-zinc-700/80 bg-zinc-900/40 p-4 text-sm text-zinc-300">Cargando información avanzada de equipos...</div>
+          <div className="mt-5 rounded-lg border border-zinc-700/80 bg-zinc-900/40 p-4 text-sm text-zinc-300">Cargando información avanzada de equipos…</div>
         )}
         {matchDetailQuery.data && (
           <div className="mt-5 space-y-4">
