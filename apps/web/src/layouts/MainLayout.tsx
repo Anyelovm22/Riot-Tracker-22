@@ -2,7 +2,7 @@ import { PropsWithChildren } from 'react';
 
 export const MainLayout = ({ children }: PropsWithChildren) => (
   <main className="min-h-screen bg-[#04081b] bg-[radial-gradient(circle_at_80%_0%,rgba(14,116,144,0.35),transparent_35%),linear-gradient(180deg,#111b4a_0%,#070d2e_38%,#050b25_100%)] text-zinc-100">
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="w-full px-3 py-6 sm:px-5 lg:px-8 xl:px-10">
       <header className="mb-6 overflow-hidden rounded-2xl border border-indigo-500/30 bg-indigo-950/50 shadow-2xl shadow-black/40 backdrop-blur">
         <div className="h-1 bg-gradient-to-r from-sky-400 via-indigo-400 to-cyan-300" />
         <div className="flex flex-wrap items-center justify-between gap-4 p-5">
