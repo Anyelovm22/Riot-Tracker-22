@@ -66,12 +66,6 @@ export const MatchHistoryTable = ({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [selectedMatchId]);
 
-  const renderComparison = (label: string, value: number, avg: number, suffix = '', max = 100) => {
-    const safeAvg = avg <= 0 ? 1 : avg;
-    const ratio = Math.max(0, Math.min(180, (value / safeAvg) * 100));
-    const tone = value >= avg ? 'bg-emerald-400' : 'bg-rose-400';
-  
-
   const prefetchMatchDetail = (matchId: string) => {
     if (!region) return;
     queryClient.prefetchQuery({
@@ -80,7 +74,13 @@ export const MatchHistoryTable = ({
       staleTime: 1000 * 60 * 3
     });
   };
-  return (
+
+  const renderComparison = (label: string, value: number, avg: number, suffix = '', max = 100) => {
+    const safeAvg = avg <= 0 ? 1 : avg;
+    const ratio = Math.max(0, Math.min(180, (value / safeAvg) * 100));
+    const tone = value >= avg ? 'bg-emerald-400' : 'bg-rose-400';
+
+    return (
       <div className="rounded-md border border-zinc-800 bg-black/20 p-3">
         <div className="mb-2 flex items-center justify-between text-xs text-zinc-400">
           <span>{label}</span>
